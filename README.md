@@ -15,3 +15,12 @@ sudo apt install libvpx-dev
 ```bash
 sudo apt install libx11-dev libxext-dev
 ```
+
+## Build
+
+### Tool chain
+
+```bash
+sudo apt search gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
+```
+

@@ -1,7 +1,5 @@
 # 可执行文件及构建目录
-/bin/           # 集中存放构建产物的目录:cite[8]
-/main           # 直接使用 `go build` 生成的无后缀可执行文件
-/myapp.exe      # Windows 下的可执行文件
+output
 /go_build_*     # 某些 IDE 或临时构建生成的文件:cite[3]
 
 # Go 模块和缓存目录

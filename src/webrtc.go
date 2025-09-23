@@ -7,12 +7,11 @@ import (
 	"github.com/pion/mediadevices/pkg/codec/vpx"
 
 	// This is required to register screen adapter
-	"github.com/pion/mediadevices/pkg/driver/screen"
+	// "github.com/pion/mediadevices/pkg/driver/screen"
 
 	// This is required to register camera adapter
-	// "github.com/pion/mediadevices/pkg/driver/camera"
+	"github.com/pion/mediadevices/pkg/driver/camera"
 
-	"github.com/pion/mediadevices/pkg/frame"
 	"github.com/pion/mediadevices/pkg/prop"
 	"github.com/pion/webrtc/v4"
 )
@@ -38,8 +37,8 @@ type WebRTC struct {
 
 func (wrtc *WebRTC) Init() {
 	// 注册摄像头驱动
-	screen.Initialize()
-	// camera.Initialize()
+	// screen.Initialize()
+	camera.Initialize()
 
 	// 创建媒体引擎
 	wrtc.me = webrtc.MediaEngine{}
@@ -98,22 +97,22 @@ func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer, device string, width int
 	})
 
 	// 设置媒体流
-	// ms, err := mediadevices.GetUserMedia(mediadevices.MediaStreamConstraints{
-	// 	Video: func(constraint *mediadevices.MediaTrackConstraints) {
-	// 		constraint.DeviceID = prop.String("video1") // 使用/dev/video1
-	// constraint.Width = prop.Int(width)
-	// constraint.Height = prop.Int(height)
-	// 	},
-	// 	Codec: wrtc.cs,
-	// })
-	ms, err := mediadevices.GetDisplayMedia(mediadevices.MediaStreamConstraints{
+	ms, err := mediadevices.GetUserMedia(mediadevices.MediaStreamConstraints{
 		Video: func(constraint *mediadevices.MediaTrackConstraints) {
-			constraint.FrameFormat = prop.FrameFormat(frame.FormatI420)
+			constraint.DeviceID = prop.String("video1") // 使用/dev/video1
 			constraint.Width = prop.Int(width)
 			constraint.Height = prop.Int(height)
 		},
 		Codec: wrtc.cs,
 	})
+	// ms, err := mediadevices.GetDisplayMedia(mediadevices.MediaStreamConstraints{
+	// 	Video: func(constraint *mediadevices.MediaTrackConstraints) {
+	// 		constraint.FrameFormat = prop.FrameFormat(frame.FormatI420)
+	// 		constraint.Width = prop.Int(width)
+	// 		constraint.Height = prop.Int(height)
+	// 	},
+	// 	Codec: wrtc.cs,
+	// })
 	if err != nil {
 		log.Fatal("create media stream error ", err)
 	}
