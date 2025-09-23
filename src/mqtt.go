@@ -9,7 +9,7 @@ import (
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 )
 
-type OnRequestHandler func(*Mqtt, *MqttRequest)
+type OnRequestHandler func([]byte)
 
 type Mqtt struct {
 	ssl      bool
@@ -76,7 +76,7 @@ func (c *Mqtt) useTopic(prop string) string {
 func (c *Mqtt) publish(prop string, message any) {
 	j, err := json.Marshal(message)
 	if err != nil {
-		log.Fatal("json string error", err)
+		log.Fatal("json string error ", err)
 	}
 
 	token := c.client.Publish(c.useTopic(prop), 0, false, j)
@@ -130,60 +130,8 @@ func (c *Mqtt) onConnectionLost(client MQTT.Client, err error) {
 	log.Println("mqtt connections lost: ", err)
 }
 
-type MqttRequestType string
-
-const (
-	WebRTCStart        MqttRequestType = "webrtc-start"
-	WebRTCStop         MqttRequestType = "webrtc-stop"
-	WebRTCIceCandidate MqttRequestType = "webrtc-ice-candidate"
-	WebRTCOffer        MqttRequestType = "webrtc-offer"
-	WebRTCAnswer       MqttRequestType = "webrtc-answer"
-)
-
-type MqttRequest struct {
-	Type          MqttRequestType `json:"type,omitempty"`
-	IceServers    []any           `json:"iceServers,omitempty"`
-	Candidate     any             `json:"candidate,omitempty"`
-	Offer         any             `json:"offer,omitempty"`
-	IceCandidates any             `json:"iceCandidates,omitempty"`
-	Answer        any             `json:"answer,omitempty"`
-	Time          int64           `json:"time"`
-}
-
-type MqttResponse struct {
-	Type          MqttRequestType `json:"type,omitempty"`
-	IceServers    []any           `json:"iceServers,omitempty"`
-	Candidate     any             `json:"candidate,omitempty"`
-	Offer         any             `json:"offer,omitempty"`
-	IceCandidates any             `json:"iceCandidates,omitempty"`
-	Answer        any             `json:"answer,omitempty"`
-	Time          int64           `json:"time,omitempty"`
-}
-
-func MqttRequestFromJSON(bs []byte) (*MqttRequest, error) {
-	var r MqttRequest
-
-	err := json.Unmarshal(bs, &r)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &r, nil
-}
-
 func (c *Mqtt) onRequest(client MQTT.Client, message MQTT.Message) {
-	r, err := MqttRequestFromJSON(message.Payload())
-
-	if err != nil {
-		log.Fatal("on request error ", err)
-	}
-
-	if r.Type == "" {
-		c.PublishResponse(MqttResponse{Time: time.Now().Unix()})
-	}
-
 	if c.OnRequest != nil {
-		c.OnRequest(c, r)
+		c.OnRequest(message.Payload())
 	}
 }

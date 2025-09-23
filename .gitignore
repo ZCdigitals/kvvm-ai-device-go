@@ -1,0 +1,34 @@
+# 可执行文件及构建目录
+/bin/           # 集中存放构建产物的目录:cite[8]
+/main           # 直接使用 `go build` 生成的无后缀可执行文件
+/myapp.exe      # Windows 下的可执行文件
+/go_build_*     # 某些 IDE 或临时构建生成的文件:cite[3]
+
+# Go 模块和缓存目录
+/pkg/           # 本地包安装和缓存目录[vague]
+/vendor/        # 项目依赖的本地副本（如果使用 vendor 模式）
+
+# 测试和性能分析文件
+*.test          # `go test -c` 生成的测试二进制文件:cite[3]:cite[4]
+*.out           # 覆盖率工具等生成的输出文件:cite[3]:cite[4]
+*.prof          # Profiling 文件:cite[3]:cite[4]
+
+# 依赖管理 (Go Modules)
+go.env          # 本地 Go 环境配置[vague]
+
+# CGO 相关文件 (如果项目使用了 CGO)
+_cgo_defun.c
+_cgo_gotypes.go
+_cgo_export.*   # CGO 相关生成文件:cite[3]:cite[4]
+*.cgo1.go
+*.cgo2.c
+
+# 编辑器与 IDE 配置文件
+.idea/          # IntelliJ IDEA (Goland)
+.vscode/        # Visual Studio Code
+*.swp           # Vim 临时文件
+*.swo
+
+# 系统文件
+.DS_Store       # macOS 桌面服务存储文件:cite[3]:cite[4]
+Thumbs.db       # Windows 缩略图缓存文件:cite[3]:cite[4]
