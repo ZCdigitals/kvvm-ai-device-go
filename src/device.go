@@ -2,6 +2,8 @@ package src
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"log"
 	"net/url"
 	"strconv"
@@ -16,6 +18,7 @@ type Device struct {
 
 	mqtt Mqtt
 	wrtc WebRTC
+	rtp  Rtp
 }
 
 func (d *Device) Init() {
@@ -44,11 +47,24 @@ func (d *Device) Init() {
 		onIceCandidate: d.onIceCandidate,
 	}
 	d.wrtc.Init()
+
+	d.rtp = NewRtp("127.0.0.1", 5004)
 }
 
-func (d *Device) Close() {
-	d.wrtc.Close()
+func (d *Device) Close() error {
+	err := d.wrtc.Close()
+	if err != nil {
+		return err
+	}
+
 	d.mqtt.Close()
+
+	err = d.rtp.Close()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type DeviceMessageType string
@@ -116,16 +132,53 @@ func (d *Device) onRequest(msg []byte) {
 				log.Fatal("json parse message error ", err)
 			}
 
-			d.wrtc.Open(Map(m.IceServers, func(ics DeviceMessageIceServer) webrtc.ICEServer {
-				return ics.ToWebrtcIceServer()
-			}), "video1", 1920, 1080)
+			// open wrtc
+			d.wrtc.Open(
+				Map(
+					m.IceServers,
+					func(ics DeviceMessageIceServer) webrtc.ICEServer {
+						return ics.ToWebrtcIceServer()
+					},
+				),
+			)
 
+			// create track after open, because this cloud be optional
+			d.wrtc.UseTrack(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264})
+
+			// send start to peer
 			d.mqtt.PublishResponse(DeviceMessageWebRTCStart{
 				DeviceMessage: DeviceMessage{
 					Time: time.Now().Unix(),
 					Type: WebRTCStart,
 				},
 			})
+
+			d.rtp.Init()
+
+			go func() {
+				// Read RTP packets forever and send them to the WebRTC Client
+				inboundRTPPacket := make([]byte, 1600) // UDP MTU
+
+				for {
+					n, _, err := d.rtp.Read(inboundRTPPacket)
+
+					if err != nil {
+						log.Fatal("device rtp read error ", err)
+					}
+
+					err = d.wrtc.WriteVideoTrack(inboundRTPPacket[:n])
+
+					if err != nil {
+						if errors.Is(err, io.ErrClosedPipe) {
+							// The peerConnection has been closed.
+							return
+						}
+
+						log.Fatal("device rtp write error ", err)
+					}
+				}
+			}()
+
 		}
 	case WebRTCIceCandidate:
 		{

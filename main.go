@@ -4,6 +4,7 @@ package main
 import (
 	"device-go/src"
 	"flag"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -27,5 +28,11 @@ func main() {
 	<-sc
 
 	// 退出
-	d.Close()
+	defer func() {
+		err := d.Close()
+
+		if err != nil {
+			log.Fatal("device close error", err)
+		}
+	}()
 }

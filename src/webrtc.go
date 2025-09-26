@@ -3,16 +3,12 @@ package src
 import (
 	"log"
 
-	"github.com/pion/mediadevices"
-	"github.com/pion/mediadevices/pkg/codec/vpx"
-
 	// This is required to register screen adapter
 	// "github.com/pion/mediadevices/pkg/driver/screen"
 
 	// This is required to register camera adapter
 	"github.com/pion/mediadevices/pkg/driver/camera"
 
-	"github.com/pion/mediadevices/pkg/prop"
 	"github.com/pion/webrtc/v4"
 )
 
@@ -23,8 +19,7 @@ type WebRTC struct {
 	me        webrtc.MediaEngine
 	api       *webrtc.API
 	pc        *webrtc.PeerConnection
-	ms        *mediadevices.MediaStream
-	cs        *mediadevices.CodecSelector
+	vt        *webrtc.TrackLocalStaticRTP
 	rtpSender *webrtc.RTPSender
 
 	// ice candidate
@@ -43,22 +38,11 @@ func (wrtc *WebRTC) Init() {
 	// 创建媒体引擎
 	wrtc.me = webrtc.MediaEngine{}
 
-	// 配置编解码器
-	vp8Params, err := vpx.NewVP8Params()
-	if err != nil {
-		log.Fatal("create vp8 params error ", err)
-	}
-	codecSelector := mediadevices.NewCodecSelector(
-		mediadevices.WithVideoEncoders(&vp8Params),
-	)
-	codecSelector.Populate(&wrtc.me)
-	wrtc.cs = codecSelector
-
 	// 创建API对象
 	wrtc.api = webrtc.NewAPI(webrtc.WithMediaEngine(&wrtc.me))
 }
 
-func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer, device string, width int, height int) {
+func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer) {
 	// 准备配置
 	config := webrtc.Configuration{
 		ICEServers: iceServers,
@@ -92,54 +76,10 @@ func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer, device string, width int
 		if cddt != nil {
 			wrtc.onIceCandidate(cddt.ToJSON())
 		} else {
+			// there cloud be null candidate, this is legal, just ignore it
 			// wrtc.onIceCandidate(nil)
 		}
 	})
-
-	// 设置媒体流
-	ms, err := mediadevices.GetUserMedia(mediadevices.MediaStreamConstraints{
-		Video: func(constraint *mediadevices.MediaTrackConstraints) {
-			constraint.DeviceID = prop.String("video1") // 使用/dev/video1
-			constraint.Width = prop.Int(width)
-			constraint.Height = prop.Int(height)
-		},
-		Codec: wrtc.cs,
-	})
-	// ms, err := mediadevices.GetDisplayMedia(mediadevices.MediaStreamConstraints{
-	// 	Video: func(constraint *mediadevices.MediaTrackConstraints) {
-	// 		constraint.FrameFormat = prop.FrameFormat(frame.FormatI420)
-	// 		constraint.Width = prop.Int(width)
-	// 		constraint.Height = prop.Int(height)
-	// 	},
-	// 	Codec: wrtc.cs,
-	// })
-	if err != nil {
-		log.Fatal("create media stream error ", err)
-	}
-	wrtc.ms = &ms
-	log.Println("create media steam")
-
-	// 添加视频轨
-	vts := ms.GetVideoTracks()
-	if len(vts) == 0 {
-		log.Fatal("there is no video track")
-	}
-
-	rtpSender, err := pc.AddTrack(vts[0])
-	if err != nil {
-		log.Fatal("add track error ", err)
-	}
-	wrtc.rtpSender = rtpSender
-
-	// 处理RTCP包
-	go func() {
-		rtcpBuf := make([]byte, 1500)
-		for {
-			if _, _, rtcpErr := rtpSender.Read(rtcpBuf); rtcpErr != nil {
-				return
-			}
-		}
-	}()
 
 	// 处理data channel
 	pc.OnDataChannel(func(dc *webrtc.DataChannel) {
@@ -169,16 +109,22 @@ func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer, device string, width int
 	})
 }
 
-func (wrtc *WebRTC) Close() {
+func (wrtc *WebRTC) Close() error {
 	if wrtc.dc != nil {
-		wrtc.dc.Close()
+		err := wrtc.dc.Close()
+		if err != nil {
+			return err
+		}
 	}
-	if wrtc.rtpSender != nil {
-		wrtc.rtpSender.Stop()
-	}
+
 	if wrtc.pc != nil {
-		wrtc.pc.Close()
+		err := wrtc.pc.Close()
+		if err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
 func (wrtc *WebRTC) UseOffer(offer webrtc.SessionDescription) webrtc.SessionDescription {
@@ -203,4 +149,45 @@ func (wrtc *WebRTC) UseOffer(offer webrtc.SessionDescription) webrtc.SessionDesc
 func (wrtc *WebRTC) UseIceCandidate(candidate webrtc.ICECandidateInit) {
 	wrtc.pc.AddICECandidate(candidate)
 	log.Println("add remote ice candidate")
+}
+
+func (wrtc *WebRTC) UseTrack(capability webrtc.RTPCodecCapability) {
+	// Create a video track
+	vt, err := webrtc.NewTrackLocalStaticRTP(
+		capability,
+		"video",
+		"pion",
+	)
+
+	if err != nil {
+		log.Fatal("create video track error ", err)
+	}
+	log.Println("create video track")
+
+	rtpSender, err := wrtc.pc.AddTrack(vt)
+	if err != nil {
+		log.Fatal("add track error ", err)
+	}
+	log.Println("add track")
+
+	// Read incoming RTCP packets
+	// Before these packets are returned they are processed by interceptors. For things
+	// like NACK this needs to be called.
+	go func() {
+		rtcpBuf := make([]byte, 1500)
+		for {
+			if _, _, rtcpErr := rtpSender.Read(rtcpBuf); rtcpErr != nil {
+				return
+			}
+		}
+	}()
+
+	wrtc.vt = vt
+	wrtc.rtpSender = rtpSender
+}
+
+func (wrtc *WebRTC) WriteVideoTrack(b []byte) error {
+	_, err := wrtc.vt.Write(b)
+
+	return err
 }
