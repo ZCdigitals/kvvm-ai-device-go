@@ -8,9 +8,9 @@ charset = utf-8
 # 缩进风格，可选space、tab
 indent_style = tab
 # 缩进的空格数
-indent_size = 2
+indent_size = 4
 # 用一个整数来设置tab缩进的列数。默认是indent_size
-tab_width = 2
+tab_width = 4
 # 结尾换行符，可选lf、cr、crlf
 end_of_line = lf
 # 在文件结尾插入新行
