@@ -7,7 +7,7 @@ import (
 	// "github.com/pion/mediadevices/pkg/driver/screen"
 
 	// This is required to register camera adapter
-	"github.com/pion/mediadevices/pkg/driver/camera"
+	// "github.com/pion/mediadevices/pkg/driver/camera"
 
 	"github.com/pion/webrtc/v4"
 )
@@ -32,8 +32,6 @@ type WebRTC struct {
 
 func (wrtc *WebRTC) Init() {
 	// 注册摄像头驱动
-	// screen.Initialize()
-	camera.Initialize()
 
 	// 创建媒体引擎
 	wrtc.me = webrtc.MediaEngine{}
