@@ -16,6 +16,12 @@ sudo apt install libvpx-dev
 sudo apt install libx11-dev libxext-dev
 ```
 
+### USB
+
+```bash
+./script/setup_usb.sh
+```
+
 ### V4l2
 
 ```bash

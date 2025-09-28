@@ -19,6 +19,7 @@ type Device struct {
 	mqtt Mqtt
 	wrtc WebRTC
 	rtp  Rtp
+	hid  HidController
 }
 
 func (d *Device) Init() {
@@ -46,10 +47,13 @@ func (d *Device) Init() {
 
 	d.wrtc = WebRTC{
 		onIceCandidate: d.onIceCandidate,
+		onHidMessage:   d.onHidMessage,
 	}
 	// d.wrtc.Init()
 
 	d.rtp = NewRtp("0.0.0.0", 5004)
+
+	d.hid = NewHidController("/dev/hidg0")
 }
 
 func (d *Device) Close() error {
@@ -232,4 +236,8 @@ func (d *Device) onIceCandidate(candidate webrtc.ICECandidateInit) {
 		},
 		IceCandidate: candidate,
 	})
+}
+
+func (d *Device) onHidMessage(msg string) {
+	d.hid.Send(msg)
 }
