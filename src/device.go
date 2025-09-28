@@ -171,6 +171,8 @@ func (d *Device) onRequest(msg []byte) {
 
 					err = d.wrtc.WriteVideoTrack(inboundRTPPacket[:n])
 
+					log.Printf("device rtp send %d", n)
+
 					if err != nil {
 						if errors.Is(err, io.ErrClosedPipe) {
 							// The peerConnection has been closed.
