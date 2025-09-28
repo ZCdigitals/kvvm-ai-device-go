@@ -16,8 +16,6 @@ type WebRTCOnIceCandidate func(candidate webrtc.ICECandidateInit)
 type WebRTCOnHidMessage func(msg string)
 
 type WebRTC struct {
-	me        webrtc.MediaEngine
-	api       *webrtc.API
 	pc        *webrtc.PeerConnection
 	vt        *webrtc.TrackLocalStaticRTP
 	rtpSender *webrtc.RTPSender
@@ -30,15 +28,7 @@ type WebRTC struct {
 	onHidMessage WebRTCOnHidMessage
 }
 
-func (wrtc *WebRTC) Init() {
-	// 注册摄像头驱动
-
-	// 创建媒体引擎
-	wrtc.me = webrtc.MediaEngine{}
-
-	// 创建API对象
-	wrtc.api = webrtc.NewAPI(webrtc.WithMediaEngine(&wrtc.me))
-}
+func (wrtc *WebRTC) Init() {}
 
 func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer) {
 	// 准备配置
@@ -47,11 +37,13 @@ func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer) {
 	}
 
 	// 创建PeerConnection
-	pc, err := wrtc.api.NewPeerConnection(config)
+	pc, err := webrtc.NewPeerConnection(config)
 	if err != nil {
 		log.Fatal("create peer connection error ", err)
 	}
+
 	wrtc.pc = pc
+
 	pc.OnConnectionStateChange(func(st webrtc.PeerConnectionState) {
 		log.Println("webrtc connect state change", st)
 		switch st {
@@ -61,6 +53,7 @@ func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer) {
 			wrtc.Close()
 		}
 	})
+
 	pc.OnICEConnectionStateChange(func(st webrtc.ICEConnectionState) {
 		log.Println("webrtc ice connection state change", st)
 	})
@@ -126,7 +119,10 @@ func (wrtc *WebRTC) Close() error {
 }
 
 func (wrtc *WebRTC) UseOffer(offer webrtc.SessionDescription) webrtc.SessionDescription {
-	wrtc.pc.SetRemoteDescription(offer)
+	err := wrtc.pc.SetRemoteDescription(offer)
+	if err != nil {
+		log.Fatal("use remote offer error ", err)
+	}
 	log.Println("use remote offer")
 
 	answer, err := wrtc.pc.CreateAnswer(nil)

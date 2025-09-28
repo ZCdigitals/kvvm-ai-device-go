@@ -34,6 +34,7 @@ func (d *Device) Init() {
 	up, _ := uu.User.Password()
 
 	d.mqtt = Mqtt{
+		ssl:       uu.Scheme == "mqtts",
 		broker:    uu.Hostname(),
 		port:      p,
 		deviceId:  d.Id,
@@ -46,9 +47,9 @@ func (d *Device) Init() {
 	d.wrtc = WebRTC{
 		onIceCandidate: d.onIceCandidate,
 	}
-	d.wrtc.Init()
+	// d.wrtc.Init()
 
-	d.rtp = NewRtp("127.0.0.1", 5004)
+	d.rtp = NewRtp("0.0.0.0", 5004)
 }
 
 func (d *Device) Close() error {
@@ -141,19 +142,14 @@ func (d *Device) onRequest(msg []byte) {
 					},
 				),
 			)
+			log.Println("webrtc open")
 
 			// create track after open, because this cloud be optional
 			d.wrtc.UseTrack(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264})
-
-			// send start to peer
-			d.mqtt.PublishResponse(DeviceMessageWebRTCStart{
-				DeviceMessage: DeviceMessage{
-					Time: time.Now().Unix(),
-					Type: WebRTCStart,
-				},
-			})
+			log.Println("webrtc use track")
 
 			d.rtp.Init()
+			log.Println("rtp init")
 
 			go func() {
 				// Read RTP packets forever and send them to the WebRTC Client
@@ -179,6 +175,13 @@ func (d *Device) onRequest(msg []byte) {
 				}
 			}()
 
+			// send start to peer
+			d.mqtt.PublishResponse(DeviceMessageWebRTCStart{
+				DeviceMessage: DeviceMessage{
+					Time: time.Now().Unix(),
+					Type: WebRTCStart,
+				},
+			})
 		}
 	case WebRTCIceCandidate:
 		{

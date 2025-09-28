@@ -16,6 +16,20 @@ sudo apt install libvpx-dev
 sudo apt install libx11-dev libxext-dev
 ```
 
+### V4l2
+
+```bash
+v4l2-ctl -d /dev/video0 --all
+v4l2-ctl -d /dev/video0 --list-formats-ext
+v4l2-ctl -d /dev/video0 --set-fmt-video=width=1920,height=1080,pixelformat=nv12
+```
+
+### Gstreamer
+
+```bash
+gst-launch-1.0 -q v4l2src device=/dev/video0 io-mode=mmap ! videoconvert ! x264enc ! rtph264pay ! udpsink host=192.168.3.45 port=5004
+```
+
 ## Build
 
 ### Tool chain
@@ -23,4 +37,3 @@ sudo apt install libx11-dev libxext-dev
 ```bash
 sudo apt search gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
 ```
-

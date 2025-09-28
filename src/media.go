@@ -1,10 +1,8 @@
 package src
 
 import (
-	"fmt"
 	"log"
 	"net"
-	"os/exec"
 )
 
 type Rtp struct {
@@ -38,20 +36,22 @@ func (rtp *Rtp) listen() {
 		log.Fatal("rtp set buffer size error ", err)
 	}
 
-	// run gstreamer
-	device := "/dev/video0"
-	cmd := exec.Command("gst-launch-1.0", "-q",
-		"v4l2src", "device="+device, "io-mode=mmap", "!",
-		"videoconvert", "!",
-		"x264enc", "!",
-		"rtph264pay", "!",
-		"udpsink", "host="+string(rtp.addr.IP), "port="+fmt.Sprint(rtp.addr.Port),
-	)
+	log.Println("rtp listen start")
 
-	err = cmd.Run()
-	if err != nil {
-		log.Fatal("run gstreamer error ", err)
-	}
+	// run gstreamer
+	// device := "/dev/video0"
+	// cmd := exec.Command("gst-launch-1.0", "-q",
+	// 	"v4l2src", "device="+device, "io-mode=mmap", "!",
+	// 	"videoconvert", "!",
+	// 	"x264enc", "!",
+	// 	"rtph264pay", "!",
+	// 	"udpsink", "host="+string(rtp.addr.IP), "port="+fmt.Sprint(rtp.addr.Port),
+	// )
+
+	// err = cmd.Run()
+	// if err != nil {
+	// 	log.Fatal("run gstreamer error ", err)
+	// }
 }
 
 func (rtp *Rtp) Read(b []byte) (int, net.Addr, error) {
