@@ -52,6 +52,7 @@ func (d *Device) Init() {
 	// d.wrtc.Init()
 
 	d.rtp = NewRtp("0.0.0.0", 5004)
+	d.rtp.Init()
 
 	d.hid = NewHidController("/dev/hidg0")
 }
@@ -65,6 +66,11 @@ func (d *Device) Close() error {
 	d.mqtt.Close()
 
 	err = d.rtp.Close()
+	if err != nil {
+		return err
+	}
+
+	err = d.hid.Close()
 	if err != nil {
 		return err
 	}
@@ -152,15 +158,12 @@ func (d *Device) onRequest(msg []byte) {
 			d.wrtc.UseTrack(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264})
 			log.Println("webrtc use track")
 
-			d.rtp.Init()
-			log.Println("rtp init")
-
 			go func() {
 				// Read RTP packets forever and send them to the WebRTC Client
 				inboundRTPPacket := make([]byte, 1600) // UDP MTU
 
 				for {
-					n, _, err := d.rtp.Read(inboundRTPPacket)
+					n, err := d.rtp.Read(inboundRTPPacket)
 
 					if err != nil {
 						log.Fatal("device rtp read error ", err)

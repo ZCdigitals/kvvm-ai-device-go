@@ -54,8 +54,9 @@ func (rtp *Rtp) listen() {
 	// }
 }
 
-func (rtp *Rtp) Read(b []byte) (int, net.Addr, error) {
-	return rtp.listener.ReadFrom(b)
+func (rtp *Rtp) Read(b []byte) (int, error) {
+	n, _, err := rtp.listener.ReadFrom(b)
+	return n, err
 }
 
 func (rtp *Rtp) Init() {
