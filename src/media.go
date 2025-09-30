@@ -1,14 +1,18 @@
 package src
 
 import (
+	"fmt"
 	"log"
 	"net"
+	"os/exec"
 )
 
 type Rtp struct {
 	addr net.UDPAddr
 
 	listener *net.UDPConn
+
+	cmd *exec.Cmd
 }
 
 func NewRtp(ip string, port int) Rtp {
@@ -39,19 +43,19 @@ func (rtp *Rtp) listen() {
 	log.Println("rtp listen start")
 
 	// run gstreamer
-	// device := "/dev/video0"
-	// cmd := exec.Command("gst-launch-1.0", "-q",
-	// 	"v4l2src", "device="+device, "io-mode=mmap", "!",
-	// 	"videoconvert", "!",
-	// 	"x264enc", "!",
-	// 	"rtph264pay", "!",
-	// 	"udpsink", "host="+string(rtp.addr.IP), "port="+fmt.Sprint(rtp.addr.Port),
-	// )
+	device := "/dev/video0"
+	rtp.cmd = exec.Command("gst-launch-1.0", "-q",
+		"v4l2src", "device="+device, "io-mode=mmap", "!",
+		"video/x-raw,format=NV12,width=1920,height=1080", "!",
+		"mpph264enc", "gop=2", "!",
+		"rtph264pay", "config-interval=-1", "aggregate-mode=zero-latency", "!",
+		"udpsink", "host="+string(rtp.addr.IP), "port="+fmt.Sprint(rtp.addr.Port),
+	)
 
-	// err = cmd.Run()
-	// if err != nil {
-	// 	log.Fatal("run gstreamer error ", err)
-	// }
+	err = rtp.cmd.Start()
+	if err != nil {
+		log.Fatal("run gstreamer error ", err)
+	}
 }
 
 func (rtp *Rtp) Read(b []byte) (int, error) {
@@ -64,5 +68,21 @@ func (rtp *Rtp) Init() {
 }
 
 func (rtp *Rtp) Close() error {
-	return rtp.listener.Close()
+	if rtp.cmd != nil {
+		err := rtp.cmd.Cancel()
+
+		if err != nil {
+			return err
+		}
+	}
+
+	if rtp.listener != nil {
+		err := rtp.listener.Close()
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

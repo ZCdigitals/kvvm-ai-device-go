@@ -4,18 +4,6 @@
 
 ### Dependences
 
-#### VPx
-
-```bash
-sudo apt install libvpx-dev
-```
-
-#### X11
-
-```bash
-sudo apt install libx11-dev libxext-dev
-```
-
 ### USB
 
 ```bash
@@ -34,6 +22,8 @@ v4l2-ctl -d /dev/video0 --set-fmt-video=width=1920,height=1080,pixelformat=NV12
 
 ```bash
 gst-launch-1.0 -v v4l2src device=/dev/video0 io-mode=mmap ! video/x-raw,format=NV12,width=1920,height=1080 ! mpph264enc gop=2 ! rtph264pay config-interval=-1 aggregate-mode=zero-latency ! udpsink host=127.0.0.1 port=5004
+
+gst-inspect-1.0
 ```
 
 ## Build
