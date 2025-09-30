@@ -102,7 +102,7 @@ const (
 // HidData 统一数据接口
 type HidData struct {
 	Category HidDataCategory `json:"category"`
-	Data     interface{}     `json:"data"`
+	Data     any             `json:"data"`
 }
 
 // UnmarshalJSON 自定义JSON反序列化
@@ -140,25 +140,31 @@ func (h *HidData) UnmarshalJSON(data []byte) error {
 
 // HidController HID控制器
 type HidController struct {
-	device string
-	fd     *os.File
+	Path string
+	fd   *os.File
 }
 
-// NewHidController 创建HID控制器
-func NewHidController(device string) HidController {
-	fd, err := os.OpenFile(device, os.O_WRONLY, 0644)
+// Open
+func (h *HidController) Open() {
+	if h.fd != nil {
+		err := h.fd.Close()
+		log.Printf("close hid device error %s", err)
+	}
+
+	fd, err := os.OpenFile(h.Path, os.O_WRONLY, 0644)
 	if err != nil {
 		log.Fatalf("failed to open device %s", err)
 	}
 
-	return HidController{
-		device: device,
-		fd:     fd,
-	}
+	h.fd = fd
 }
 
 // Close 关闭设备
 func (h *HidController) Close() error {
+	if h.fd == nil {
+		return nil
+	}
+
 	return h.fd.Close()
 }
 

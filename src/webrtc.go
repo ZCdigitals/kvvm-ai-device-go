@@ -20,6 +20,9 @@ type WebRTC struct {
 	vt        *webrtc.TrackLocalStaticRTP
 	rtpSender *webrtc.RTPSender
 
+	// close
+	onClose func()
+
 	// ice candidate
 	onIceCandidate WebRTCOnIceCandidate
 
@@ -48,8 +51,14 @@ func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer) {
 		log.Println("webrtc connect state change", st)
 		switch st {
 		case webrtc.PeerConnectionStateClosed:
+			if wrtc.onClose != nil {
+				wrtc.onClose()
+			}
 			wrtc.Close()
 		case webrtc.PeerConnectionStateFailed:
+			if wrtc.onClose != nil {
+				wrtc.onClose()
+			}
 			wrtc.Close()
 		}
 	})

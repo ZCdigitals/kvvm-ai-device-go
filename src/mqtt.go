@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 	"time"
 
 	MQTT "github.com/eclipse/paho.mqtt.golang"
@@ -12,12 +13,8 @@ import (
 type OnRequestHandler func([]byte)
 
 type Mqtt struct {
-	ssl      bool
-	broker   string
-	port     int64
-	deviceId string
-	username string
-	password string
+	Id  string
+	Url string
 
 	client MQTT.Client
 
@@ -28,17 +25,26 @@ func (c *Mqtt) Init() {
 	// options
 	options := MQTT.NewClientOptions()
 
+	uu, err := url.Parse(c.Url)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	up, upe := uu.User.Password()
+
 	// set server props
 	var b string
-	if c.ssl {
-		b = fmt.Sprintf("ssl://%s:%d", c.broker, c.port)
+	if uu.Scheme == "mqtts" {
+		b = fmt.Sprintf("ssl://%s:%s", uu.Hostname(), uu.Port())
 	} else {
-		b = fmt.Sprintf("tcp://%s:%d", c.broker, c.port)
+		b = fmt.Sprintf("tcp://%s:%s", uu.Hostname(), uu.Port())
 	}
 	options.AddBroker(b)
-	options.SetClientID(fmt.Sprintf("device-%s", c.deviceId))
-	options.SetUsername(c.username)
-	options.SetPassword(c.password)
+	options.SetClientID(fmt.Sprintf("device-%s", c.Id))
+	options.SetUsername(uu.User.Username())
+	if upe {
+		options.SetPassword(up)
+	}
 
 	// set callback
 	options.OnConnect = c.onConnect
@@ -70,7 +76,7 @@ func (c *Mqtt) Close() {
 }
 
 func (c *Mqtt) useTopic(prop string) string {
-	return fmt.Sprintf("device/%s/%s", c.deviceId, prop)
+	return fmt.Sprintf("device/%s/%s", c.Id, prop)
 }
 
 func (c *Mqtt) publish(prop string, message any) {
@@ -123,7 +129,7 @@ func (c *Mqtt) PublishResponse(data any) {
 }
 
 func (c *Mqtt) onConnect(client MQTT.Client) {
-	log.Println("mqtt connected ", c.deviceId)
+	log.Println("mqtt connected ", c.Id)
 }
 
 func (c *Mqtt) onConnectionLost(client MQTT.Client, err error) {

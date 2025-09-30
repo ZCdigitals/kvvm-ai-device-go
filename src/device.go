@@ -5,16 +5,14 @@ import (
 	"errors"
 	"io"
 	"log"
-	"net/url"
-	"strconv"
 	"time"
 
 	"github.com/pion/webrtc/v4"
 )
 
 type Device struct {
-	Id         string
-	MqttBroker string
+	Id      string
+	MqttUrl string
 
 	mqtt Mqtt
 	wrtc WebRTC
@@ -23,47 +21,37 @@ type Device struct {
 }
 
 func (d *Device) Init() {
-	uu, err := url.Parse(d.MqttBroker)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	p, err := strconv.ParseInt(uu.Port(), 0, 64)
-	if err != nil {
-		log.Fatal(err)
-	}
-	up, _ := uu.User.Password()
-
+	// create mqtt
 	d.mqtt = Mqtt{
-		ssl:       uu.Scheme == "mqtts",
-		broker:    uu.Hostname(),
-		port:      p,
-		deviceId:  d.Id,
-		username:  uu.User.Username(),
-		password:  up,
+		Url:       d.MqttUrl,
 		OnRequest: d.onRequest,
 	}
 	d.mqtt.Init()
 
+	// create webrtc
 	d.wrtc = WebRTC{
 		onIceCandidate: d.onIceCandidate,
 		onHidMessage:   d.onHidMessage,
+		onClose: func() {
+			d.rtp.Close()
+			d.hid.Close()
+		},
 	}
-	// d.wrtc.Init()
 
-	d.rtp = NewRtp("0.0.0.0", 5004)
-	d.rtp.Init()
+	// create rtp
+	d.rtp = Rtp{Ip: "0.0.0.0", Port: 5004}
 
-	d.hid = NewHidController("/dev/hidg0")
+	// create hid
+	d.hid = HidController{Path: "/dev/hidg0"}
 }
 
 func (d *Device) Close() error {
+	d.mqtt.Close()
+
 	err := d.wrtc.Close()
 	if err != nil {
 		return err
 	}
-
-	d.mqtt.Close()
 
 	err = d.rtp.Close()
 	if err != nil {
@@ -181,6 +169,12 @@ func (d *Device) onRequest(msg []byte) {
 					}
 				}
 			}()
+
+			// start hid
+			d.hid.Open()
+
+			// init rtp
+			d.rtp.Init()
 
 			// send start to peer
 			d.mqtt.PublishResponse(DeviceMessageWebRTCStart{

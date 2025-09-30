@@ -19,13 +19,8 @@ func main() {
 	flag.Parse()
 
 	// 初始化
-	d := src.Device{Id: id, MqttBroker: url}
+	d := src.Device{Id: id, MqttUrl: url}
 	d.Init()
-
-	// 等待中断信号
-	sc := make(chan os.Signal, 1)
-	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM)
-	<-sc
 
 	// 退出
 	defer func() {
@@ -35,4 +30,9 @@ func main() {
 			log.Fatal("device close error", err)
 		}
 	}()
+
+	// 等待中断信号
+	sc := make(chan os.Signal, 1)
+	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM)
+	<-sc
 }
