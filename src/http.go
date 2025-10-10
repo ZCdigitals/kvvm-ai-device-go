@@ -1,28 +1,51 @@
 package src
 
 import (
+	"io"
 	"net/http"
-	"strings"
 )
 
-func HttpRequest(method string, url string, headers map[string]string, body string) (*http.Response, error) {
-	req, err := http.NewRequest(method, url, strings.NewReader(body))
+type HttpRequestData struct {
+	Id     string      `json:"id"`
+	Method string      `json:"method,omitempty"`
+	Url    string      `json:"url,omitempty"`
+	Header http.Header `json:"header,omitempty"`
+
+	body io.ReadCloser
+}
+
+type HttpResponseData struct {
+	Id     string      `json:"id"`
+	Status int         `json:"status"`
+	Header http.Header `json:"header,omitempty"`
+
+	body io.ReadCloser
+}
+
+func SendHttpRequest(r HttpRequestData) (*HttpResponseData, error) {
+	req, err := http.NewRequest(r.Method, r.Url, r.body)
 	if err != nil {
 		return nil, err
 	}
+	defer r.body.Close()
 
-	defer req.Body.Close()
-
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
+	// set header
+	req.Header = r.Header
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 
-	defer res.Body.Close()
+	rr := HttpResponseData{
+		Id:     r.Id,
+		Status: res.StatusCode,
+		Header: res.Header,
 
-	return res, nil
+		body: res.Body,
+	}
+
+	// defer res.Body.Close()
+
+	return &rr, nil
 }

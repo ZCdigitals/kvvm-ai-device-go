@@ -13,7 +13,7 @@ import (
 )
 
 type WebRTCOnIceCandidate func(candidate webrtc.ICECandidateInit)
-type WebRTCOnDataChannelMessage func(msg string)
+type WebRTCOnDataChannelMessage func(msg []byte)
 
 type WebRTC struct {
 	pc *webrtc.PeerConnection
@@ -101,7 +101,7 @@ func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer) {
 
 				if wrtc.onHidMessage != nil {
 					dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-						wrtc.onHidMessage(string(msg.Data))
+						wrtc.onHidMessage(msg.Data)
 					})
 				}
 			}
@@ -121,7 +121,7 @@ func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer) {
 
 				if wrtc.onHttpMessage != nil {
 					dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-						wrtc.onHttpMessage(string(msg.Data))
+						wrtc.onHttpMessage(msg.Data)
 					})
 				}
 			}
@@ -243,12 +243,12 @@ func (wrtc *WebRTC) WriteVideoTrack(b []byte) error {
 	return err
 }
 
-func (wrtc *WebRTC) SendHttpMessage(m string) error {
+func (wrtc *WebRTC) SendHttpMessage(b []byte) error {
 	if wrtc.httpChannel == nil {
 		return nil
 	}
 
-	err := wrtc.hidChannel.SendText(m)
+	err := wrtc.hidChannel.Send(b)
 
 	return err
 }

@@ -266,9 +266,9 @@ func (h *HidController) SendKeyboard(data HidKeyboardData) {
 }
 
 // Send 发送JSON数据
-func (h *HidController) Send(jsonStr string) error {
+func (h *HidController) Send(b []byte) error {
 	var hidData HidData
-	if err := json.Unmarshal([]byte(jsonStr), &hidData); err != nil {
+	if err := json.Unmarshal(b, &hidData); err != nil {
 		return fmt.Errorf("failed to parse JSON: %v", err)
 	}
 

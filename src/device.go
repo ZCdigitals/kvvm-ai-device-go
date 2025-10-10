@@ -136,6 +136,13 @@ func (d *Device) onMqttRequest(msg []byte) {
 	}
 }
 
+type DeviceHttpData struct {
+	Method string            `json:"method"`
+	Url    string            `json:"url"`
+	Header map[string]string `json:"header"`
+	Body   string            `json:"body,omitempty"`
+}
+
 func (d *Device) onWebRTCStart(msg DeviceMessage) {
 	// use ice servers
 	iss := make([]webrtc.ICEServer, len(msg.IceServers))
@@ -183,9 +190,32 @@ func (d *Device) onWebRTCStart(msg DeviceMessage) {
 	if msg.Hid {
 		d.hid.Open()
 
-		d.wrtc.onHidMessage = func(msg string) {
+		d.wrtc.onHidMessage = func(msg []byte) {
 			d.hid.Send(msg)
 		}
+	}
+
+	d.wrtc.onHttpMessage = func(msg []byte) {
+		var req HttpRequestData
+		json.Unmarshal(msg, &req)
+
+		// todo, http body
+
+		res, err := SendHttpRequest(req)
+		if err != nil {
+			log.Printf("http send error %s", err)
+			return
+		}
+
+		mm, err := json.Marshal(res)
+		if err != nil {
+			log.Printf("http json error %s", err)
+			return
+		}
+
+		d.wrtc.SendHttpMessage(mm)
+
+		// todo, http body
 	}
 
 	// send start to peer
