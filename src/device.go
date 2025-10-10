@@ -33,15 +33,8 @@ func (d *Device) Init() {
 	d.wrtc = WebRTC{
 		onIceCandidate: d.sendIceCandidate,
 		onClose: func() {
-			err := d.rtp.Close()
-			if err != nil {
-				log.Printf("rtp close error %s", err)
-			}
-
-			err = d.hid.Close()
-			if err != nil {
-				log.Printf("hid close error %s", err)
-			}
+			d.rtp.Close()
+			d.hid.Close()
 		},
 	}
 
@@ -55,20 +48,11 @@ func (d *Device) Init() {
 func (d *Device) Close() {
 	d.mqtt.Close()
 
-	err := d.wrtc.Close()
-	if err != nil {
-		log.Printf("wrtc close error %s", err)
-	}
+	d.wrtc.Close()
 
-	err = d.rtp.Close()
-	if err != nil {
-		log.Printf("rtp close error %s", err)
-	}
+	d.rtp.Close()
 
-	err = d.hid.Close()
-	if err != nil {
-		log.Printf("hid close error %s", err)
-	}
+	d.hid.Close()
 }
 
 type DeviceMessageType string

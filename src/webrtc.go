@@ -13,10 +13,12 @@ import (
 )
 
 type WebRTCOnIceCandidate func(candidate webrtc.ICECandidateInit)
-type WebRTCOnHidMessage func(msg string)
+type WebRTCOnDataChannelMessage func(msg string)
 
 type WebRTC struct {
-	pc        *webrtc.PeerConnection
+	pc *webrtc.PeerConnection
+
+	// video track
 	vt        *webrtc.TrackLocalStaticRTP
 	rtpSender *webrtc.RTPSender
 
@@ -27,8 +29,12 @@ type WebRTC struct {
 	onIceCandidate WebRTCOnIceCandidate
 
 	// hid data channel
-	dc           *webrtc.DataChannel
-	onHidMessage WebRTCOnHidMessage
+	hidChannel   *webrtc.DataChannel
+	onHidMessage WebRTCOnDataChannelMessage
+
+	// http data channel
+	httpChannel   *webrtc.DataChannel
+	onHttpMessage WebRTCOnDataChannelMessage
 }
 
 func (wrtc *WebRTC) Init() {}
@@ -51,14 +57,8 @@ func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer) {
 		log.Println("webrtc connect state change", st)
 		switch st {
 		case webrtc.PeerConnectionStateClosed:
-			if wrtc.onClose != nil {
-				wrtc.onClose()
-			}
 			wrtc.Close()
 		case webrtc.PeerConnectionStateFailed:
-			if wrtc.onClose != nil {
-				wrtc.onClose()
-			}
 			wrtc.Close()
 		}
 	})
@@ -81,50 +81,98 @@ func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer) {
 		}
 	})
 
-	// 处理data channel
+	// handle data channel
 	pc.OnDataChannel(func(dc *webrtc.DataChannel) {
-		// only allow hid data
-		if dc.Label() != "hid" {
-			log.Println("unknown data channel", dc.Label())
-			return
-		}
-		wrtc.dc = dc
+		switch dc.Label() {
+		// hid data
+		case "hid":
+			{
+				wrtc.hidChannel = dc
 
-		dc.OnClose(func() {
-			log.Println("data channel close")
-			wrtc.dc.Close()
-		})
+				dc.OnClose(func() {
+					log.Println("hid data channel close")
+					wrtc.hidChannel.Close()
+					wrtc.hidChannel = nil
+				})
 
-		dc.OnOpen(func() {
-			log.Println("data channel open")
-		})
+				dc.OnOpen(func() {
+					log.Println("hid data channel open")
+				})
 
-		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			if wrtc.onHidMessage == nil {
-				return
+				if wrtc.onHidMessage != nil {
+					dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+						wrtc.onHidMessage(string(msg.Data))
+					})
+				}
 			}
-			// handle hid data
-			wrtc.onHidMessage(string(msg.Data))
-		})
+		case "http":
+			{
+				wrtc.httpChannel = dc
+
+				dc.OnClose(func() {
+					log.Println("http data channel close")
+					wrtc.httpChannel.Close()
+					wrtc.httpChannel = nil
+				})
+
+				dc.OnOpen(func() {
+					log.Println("http data channel open")
+				})
+
+				if wrtc.onHttpMessage != nil {
+					dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+						wrtc.onHttpMessage(string(msg.Data))
+					})
+				}
+			}
+		default:
+			log.Println("unknown data channel", dc.Label())
+		}
 	})
 }
 
-func (wrtc *WebRTC) Close() error {
-	if wrtc.dc != nil {
-		err := wrtc.dc.Close()
+func (wrtc *WebRTC) Close() {
+	if wrtc.onClose != nil {
+		wrtc.onClose()
+	}
+
+	if wrtc.hidChannel != nil {
+		err := wrtc.hidChannel.Close()
 		if err != nil {
-			return err
+			log.Printf("wrtc hid channel close error %s", err)
 		}
+
+		wrtc.hidChannel = nil
+	}
+
+	if wrtc.httpChannel != nil {
+		err := wrtc.httpChannel.Close()
+		if err != nil {
+			log.Printf("wrtc http channel close error %s", err)
+		}
+
+		wrtc.httpChannel = nil
+	}
+
+	if wrtc.vt != nil {
+		wrtc.vt = nil
+	}
+
+	if wrtc.rtpSender != nil {
+		err := wrtc.rtpSender.Stop()
+		if err != nil {
+			log.Printf("wrtc rtp sender stop error %s", err)
+		}
+
+		wrtc.rtpSender = nil
 	}
 
 	if wrtc.pc != nil {
 		err := wrtc.pc.Close()
 		if err != nil {
-			return err
+			log.Printf("wrtc peer connection close error %s", err)
 		}
 	}
-
-	return nil
 }
 
 func (wrtc *WebRTC) UseOffer(offer webrtc.SessionDescription) webrtc.SessionDescription {
@@ -191,6 +239,16 @@ func (wrtc *WebRTC) UseTrack(capability webrtc.RTPCodecCapability) {
 
 func (wrtc *WebRTC) WriteVideoTrack(b []byte) error {
 	_, err := wrtc.vt.Write(b)
+
+	return err
+}
+
+func (wrtc *WebRTC) SendHttpMessage(m string) error {
+	if wrtc.httpChannel == nil {
+		return nil
+	}
+
+	err := wrtc.hidChannel.SendText(m)
 
 	return err
 }

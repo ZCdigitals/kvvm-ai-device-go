@@ -68,24 +68,21 @@ func (rtp *Rtp) Init() {
 	}
 }
 
-func (rtp *Rtp) Close() error {
+func (rtp *Rtp) Close() {
 	if rtp.cmd != nil {
 		err := rtp.cmd.Cancel()
 
 		if err != nil {
-			return err
+			log.Printf("rtp cmd cancel error %s", err)
 		}
 	}
 
 	if rtp.listener != nil {
 		err := rtp.listener.Close()
-
 		if err != nil {
-			return err
+			log.Printf("rtp listener close error %s", err)
 		}
 	}
-
-	return nil
 }
 
 func (rtp *Rtp) Read(b []byte) (int, error) {

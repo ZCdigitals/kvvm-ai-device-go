@@ -160,12 +160,16 @@ func (h *HidController) Open() {
 }
 
 // Close 关闭设备
-func (h *HidController) Close() error {
-	if h.fd == nil {
-		return nil
+func (h *HidController) Close() {
+	if h.fd != nil {
+		return
 	}
 
-	return h.fd.Close()
+	err := h.fd.Close()
+	if err != nil {
+		log.Printf("hid controller close error %s", err)
+	}
+
 }
 
 // WriteReport 写入报告
