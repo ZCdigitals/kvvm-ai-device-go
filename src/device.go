@@ -15,6 +15,7 @@ type Device struct {
 	MqttUrl string
 
 	mqtt Mqtt
+
 	wrtc WebRTC
 	rtp  Rtp
 	hid  HidController
@@ -23,47 +24,51 @@ type Device struct {
 func (d *Device) Init() {
 	// create mqtt
 	d.mqtt = Mqtt{
-		Url:       d.MqttUrl,
-		OnRequest: d.onRequest,
+		url:       d.MqttUrl,
+		onRequest: d.onMqttRequest,
 	}
 	d.mqtt.Init()
 
 	// create webrtc
 	d.wrtc = WebRTC{
-		onIceCandidate: d.onIceCandidate,
-		onHidMessage:   d.onHidMessage,
+		onIceCandidate: d.sendIceCandidate,
 		onClose: func() {
-			d.rtp.Close()
-			d.hid.Close()
+			err := d.rtp.Close()
+			if err != nil {
+				log.Printf("rtp close error %s", err)
+			}
+
+			err = d.hid.Close()
+			if err != nil {
+				log.Printf("hid close error %s", err)
+			}
 		},
 	}
 
 	// create rtp
-	d.rtp = Rtp{Ip: "0.0.0.0", Port: 5004}
+	d.rtp = Rtp{device: "/dev/video0", ip: "0.0.0.0", port: 5004}
 
 	// create hid
 	d.hid = HidController{Path: "/dev/hidg0"}
 }
 
-func (d *Device) Close() error {
+func (d *Device) Close() {
 	d.mqtt.Close()
 
 	err := d.wrtc.Close()
 	if err != nil {
-		return err
+		log.Printf("wrtc close error %s", err)
 	}
 
 	err = d.rtp.Close()
 	if err != nil {
-		return err
+		log.Printf("rtp close error %s", err)
 	}
 
 	err = d.hid.Close()
 	if err != nil {
-		return err
+		log.Printf("hid close error %s", err)
 	}
-
-	return nil
 }
 
 type DeviceMessageType string
@@ -93,123 +98,45 @@ func (iceServer *DeviceMessageIceServer) ToWebrtcIceServer() webrtc.ICEServer {
 type DeviceMessage struct {
 	Time int64             `json:"time,omitempty"`
 	Type DeviceMessageType `json:"type,omitempty"`
+
+	// webrtc start
+	IceServers []DeviceMessageIceServer `json:"iceServers"`
+	Video      bool                     `json:"video,omitempty"`
+	Hid        bool                     `json:"hid,omitempty"`
+
+	// webrtc ice candidate
+	IceCandidate  webrtc.ICECandidateInit   `json:"iceCandidate,omitempty"`
+	IceCandidates []webrtc.ICECandidateInit `json:"iceCandidates"`
+
+	// webrtc offer
+	Offer webrtc.SessionDescription `json:"offer,omitempty"`
+
+	// webrtc answer
+	Answer webrtc.SessionDescription `json:"answer,omitempty"`
 }
 
-type DeviceMessageWebRTCStart struct {
-	DeviceMessage
-	IceServers []DeviceMessageIceServer `json:"iceServers,omitempty"`
-}
-
-type DeviceMessageWebRTCIceCandidate struct {
-	DeviceMessage
-	IceCandidate webrtc.ICECandidateInit `json:"iceCandidate"`
-}
-
-type DeviceMessageWebRTCOffer struct {
-	DeviceMessage
-	Offer webrtc.SessionDescription `json:"offer"`
-}
-
-type DeviceMessageWebRTCAnswer struct {
-	DeviceMessage
-	Answer webrtc.SessionDescription `json:"answer"`
-}
-
-func (d *Device) onRequest(msg []byte) {
+func (d *Device) onMqttRequest(msg []byte) {
 	var m DeviceMessage
 	err := json.Unmarshal(msg, &m)
 	if err != nil {
-		log.Fatal("json parse message error ", err)
+		log.Fatalf("json parse message error %s", err)
 	}
 
 	switch m.Type {
 	case WebRTCStart:
-		{
-			var m DeviceMessageWebRTCStart
-			err := json.Unmarshal(msg, &m)
-			if err != nil {
-				log.Fatal("json parse message error ", err)
-			}
-
-			// open wrtc
-			d.wrtc.Open(
-				Map(
-					m.IceServers,
-					func(ics DeviceMessageIceServer) webrtc.ICEServer {
-						return ics.ToWebrtcIceServer()
-					},
-				),
-			)
-			log.Println("webrtc open")
-
-			// create track after open, because this cloud be optional
-			d.wrtc.UseTrack(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264})
-			log.Println("webrtc use track")
-
-			go func() {
-				// Read RTP packets forever and send them to the WebRTC Client
-				inboundRTPPacket := make([]byte, 1600) // UDP MTU
-
-				for {
-					n, err := d.rtp.Read(inboundRTPPacket)
-
-					if err != nil {
-						log.Fatal("device rtp read error ", err)
-					}
-
-					err = d.wrtc.WriteVideoTrack(inboundRTPPacket[:n])
-
-					if err != nil {
-						if errors.Is(err, io.ErrClosedPipe) {
-							// The peerConnection has been closed.
-							return
-						}
-
-						log.Fatal("device rtp write error ", err)
-					}
-				}
-			}()
-
-			// start hid
-			d.hid.Open()
-
-			// init rtp
-			d.rtp.Init()
-
-			// send start to peer
-			d.mqtt.PublishResponse(DeviceMessageWebRTCStart{
-				DeviceMessage: DeviceMessage{
-					Time: time.Now().Unix(),
-					Type: WebRTCStart,
-				},
-			})
-		}
+		d.onWebRTCStart(m)
 	case WebRTCIceCandidate:
-		{
-			var m DeviceMessageWebRTCIceCandidate
-			err := json.Unmarshal(msg, &m)
-			if err != nil {
-				log.Fatal("json parse message error ", err)
-			}
-
-			d.wrtc.UseIceCandidate(m.IceCandidate)
-		}
+		d.wrtc.UseIceCandidate(m.IceCandidate)
 	case WebRTCOffer:
 		{
-			var m DeviceMessageWebRTCOffer
-			err := json.Unmarshal(msg, &m)
-			if err != nil {
-				log.Fatal("json parse message error ", err)
-			}
-
 			answer := d.wrtc.UseOffer(m.Offer)
-			d.mqtt.PublishResponse(DeviceMessageWebRTCAnswer{
-				DeviceMessage: DeviceMessage{
-					Time: time.Now().Unix(),
-					Type: WebRTCAnswer,
+			d.mqtt.PublishResponse(
+				DeviceMessage{
+					Time:   time.Now().Unix(),
+					Type:   WebRTCAnswer,
+					Answer: answer,
 				},
-				Answer: answer,
-			})
+			)
 		}
 	case "":
 		{
@@ -225,16 +152,73 @@ func (d *Device) onRequest(msg []byte) {
 	}
 }
 
-func (d *Device) onIceCandidate(candidate webrtc.ICECandidateInit) {
-	d.mqtt.PublishResponse(DeviceMessageWebRTCIceCandidate{
-		DeviceMessage: DeviceMessage{
+func (d *Device) onWebRTCStart(msg DeviceMessage) {
+	// use ice servers
+	iss := make([]webrtc.ICEServer, len(msg.IceServers))
+	for i, v := range msg.IceServers {
+		iss[i] = v.ToWebrtcIceServer()
+	}
+
+	// open wrtc
+	d.wrtc.Open(iss)
+
+	// use video
+	if msg.Video {
+		// create track after open, because this cloud be optional
+		d.wrtc.UseTrack(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264})
+		log.Println("webrtc use track")
+
+		go func() {
+			// Read RTP packets forever and send them to the WebRTC Client
+			inboundRTPPacket := make([]byte, 1600) // UDP MTU
+
+			for {
+				n, err := d.rtp.Read(inboundRTPPacket)
+
+				if err != nil {
+					log.Fatalf("device rtp read error %s", err)
+				}
+
+				err = d.wrtc.WriteVideoTrack(inboundRTPPacket[:n])
+
+				if err != nil {
+					if errors.Is(err, io.ErrClosedPipe) {
+						// The peerConnection has been closed.
+						return
+					}
+
+					log.Fatalf("device rtp write error %s", err)
+				}
+			}
+		}()
+
+		d.rtp.Init()
+	}
+
+	// use hid
+	if msg.Hid {
+		d.hid.Open()
+
+		d.wrtc.onHidMessage = func(msg string) {
+			d.hid.Send(msg)
+		}
+	}
+
+	// send start to peer
+	d.mqtt.PublishResponse(
+		DeviceMessage{
 			Time: time.Now().Unix(),
-			Type: WebRTCIceCandidate,
+			Type: WebRTCStart,
 		},
-		IceCandidate: candidate,
-	})
+	)
 }
 
-func (d *Device) onHidMessage(msg string) {
-	d.hid.Send(msg)
+func (d *Device) sendIceCandidate(candidate webrtc.ICECandidateInit) {
+	d.mqtt.PublishResponse(
+		DeviceMessage{
+			Time:         time.Now().Unix(),
+			Type:         WebRTCIceCandidate,
+			IceCandidate: candidate,
+		},
+	)
 }

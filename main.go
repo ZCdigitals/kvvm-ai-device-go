@@ -4,7 +4,6 @@ package main
 import (
 	"device-go/src"
 	"flag"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -23,13 +22,7 @@ func main() {
 	d.Init()
 
 	// 退出
-	defer func() {
-		err := d.Close()
-
-		if err != nil {
-			log.Fatal("device close error", err)
-		}
-	}()
+	defer d.Close()
 
 	// 等待中断信号
 	sc := make(chan os.Signal, 1)

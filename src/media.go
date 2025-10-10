@@ -8,8 +8,9 @@ import (
 )
 
 type Rtp struct {
-	Ip   string
-	Port int
+	device string
+	ip     string
+	port   int
 
 	listener *net.UDPConn
 
@@ -34,11 +35,11 @@ func (rtp *Rtp) Init() {
 	}
 
 	listener, err := net.ListenUDP("udp", &net.UDPAddr{
-		IP:   net.ParseIP(rtp.Ip),
-		Port: rtp.Port,
+		IP:   net.ParseIP(rtp.ip),
+		Port: rtp.port,
 	})
 	if err != nil {
-		log.Fatal("rtp listen error ", err)
+		log.Fatalf("rtp listen error %s", err)
 	}
 
 	// Increase the UDP receive buffer size
@@ -46,24 +47,24 @@ func (rtp *Rtp) Init() {
 	bufferSize := 300000 // 300KB
 	err = listener.SetReadBuffer(bufferSize)
 	if err != nil {
-		log.Fatal("rtp set buffer size error ", err)
+		log.Fatalf("rtp set buffer size error %s", err)
 	}
 
 	log.Println("rtp listen start")
 
 	// run gstreamer
-	device := "/dev/video0"
+	// device := "/dev/video0"
 	rtp.cmd = exec.Command("gst-launch-1.0", "-q",
-		"v4l2src", "device="+device, "io-mode=mmap", "!",
+		"v4l2src", "device="+rtp.device, "io-mode=mmap", "!",
 		"video/x-raw,format=NV12,width=1920,height=1080", "!",
 		"mpph264enc", "gop=2", "!",
 		"rtph264pay", "config-interval=-1", "aggregate-mode=zero-latency", "!",
-		"udpsink", "host="+rtp.Ip, "port="+fmt.Sprint(rtp.Port),
+		"udpsink", "host="+rtp.ip, "port="+fmt.Sprint(rtp.port),
 	)
 
 	err = rtp.cmd.Start()
 	if err != nil {
-		log.Fatal("run gstreamer error ", err)
+		log.Fatalf("run gstreamer error %s", err)
 	}
 }
 

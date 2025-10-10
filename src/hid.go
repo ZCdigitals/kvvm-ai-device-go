@@ -25,9 +25,9 @@ type HidMouseData struct {
 // NewHidMouseData 创建鼠标数据
 func NewHidMouseData(x, y int, buttons ...bool) *HidMouseData {
 	if x < 0 || x >= 32768 {
-		log.Fatal("x must be in [0, 32768)")
+		log.Fatalln("x must be in [0, 32768)")
 	} else if y < 0 || y >= 32768 {
-		log.Fatal("y must be in [0, 32768)")
+		log.Fatalln("y must be in [0, 32768)")
 	}
 
 	data := &HidMouseData{
