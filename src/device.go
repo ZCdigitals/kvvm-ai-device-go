@@ -85,19 +85,19 @@ type DeviceMessage struct {
 	Type DeviceMessageType `json:"type,omitempty"`
 
 	// webrtc start
-	IceServers []DeviceMessageIceServer `json:"iceServers"`
-	Video      bool                     `json:"video,omitempty"`
-	Hid        bool                     `json:"hid,omitempty"`
+	IceServers *[]DeviceMessageIceServer `json:"iceServers,omitempty"`
+	Video      bool                      `json:"video,omitempty"`
+	Hid        bool                      `json:"hid,omitempty"`
 
 	// webrtc ice candidate
-	IceCandidate  webrtc.ICECandidateInit   `json:"iceCandidate,omitempty"`
-	IceCandidates []webrtc.ICECandidateInit `json:"iceCandidates"`
+	IceCandidate  *webrtc.ICECandidateInit   `json:"iceCandidate,omitempty"`
+	IceCandidates *[]webrtc.ICECandidateInit `json:"iceCandidates,omitempty"`
 
 	// webrtc offer
-	Offer webrtc.SessionDescription `json:"offer,omitempty"`
+	Offer *webrtc.SessionDescription `json:"offer,omitempty"`
 
 	// webrtc answer
-	Answer webrtc.SessionDescription `json:"answer,omitempty"`
+	Answer *webrtc.SessionDescription `json:"answer,omitempty"`
 }
 
 func (d *Device) onMqttRequest(msg []byte) {
@@ -119,7 +119,7 @@ func (d *Device) onMqttRequest(msg []byte) {
 				DeviceMessage{
 					Time:   time.Now().Unix(),
 					Type:   WebRTCAnswer,
-					Answer: answer,
+					Answer: &answer,
 				},
 			)
 		}
@@ -146,8 +146,8 @@ type DeviceHttpData struct {
 
 func (d *Device) onWebRTCStart(msg DeviceMessage) {
 	// use ice servers
-	iss := make([]webrtc.ICEServer, len(msg.IceServers))
-	for i, v := range msg.IceServers {
+	iss := make([]webrtc.ICEServer, len(*msg.IceServers))
+	for i, v := range *msg.IceServers {
 		iss[i] = v.ToWebrtcIceServer()
 	}
 
@@ -228,7 +228,7 @@ func (d *Device) onWebRTCStart(msg DeviceMessage) {
 	)
 }
 
-func (d *Device) sendIceCandidate(candidate webrtc.ICECandidateInit) {
+func (d *Device) sendIceCandidate(candidate *webrtc.ICECandidateInit) {
 	d.mqtt.PublishResponse(
 		DeviceMessage{
 			Time:         time.Now().Unix(),

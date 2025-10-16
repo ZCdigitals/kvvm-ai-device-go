@@ -12,7 +12,7 @@ import (
 	"github.com/pion/webrtc/v4"
 )
 
-type WebRTCOnIceCandidate func(candidate webrtc.ICECandidateInit)
+type WebRTCOnIceCandidate func(candidate *webrtc.ICECandidateInit)
 type WebRTCOnDataChannelMessage func(msg []byte)
 
 type WebRTC struct {
@@ -74,7 +74,8 @@ func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer) {
 			return
 		}
 		if cddt != nil {
-			wrtc.onIceCandidate(cddt.ToJSON())
+			cj := cddt.ToJSON()
+			wrtc.onIceCandidate(&cj)
 		} else {
 			// there cloud be null candidate, this is legal, just ignore it
 			// wrtc.onIceCandidate(nil)
@@ -175,8 +176,8 @@ func (wrtc *WebRTC) Close() {
 	}
 }
 
-func (wrtc *WebRTC) UseOffer(offer webrtc.SessionDescription) webrtc.SessionDescription {
-	err := wrtc.pc.SetRemoteDescription(offer)
+func (wrtc *WebRTC) UseOffer(offer *webrtc.SessionDescription) webrtc.SessionDescription {
+	err := wrtc.pc.SetRemoteDescription(*offer)
 	if err != nil {
 		log.Fatalf("use remote offer error %s", err)
 	}
@@ -197,8 +198,8 @@ func (wrtc *WebRTC) UseOffer(offer webrtc.SessionDescription) webrtc.SessionDesc
 	return answer
 }
 
-func (wrtc *WebRTC) UseIceCandidate(candidate webrtc.ICECandidateInit) {
-	wrtc.pc.AddICECandidate(candidate)
+func (wrtc *WebRTC) UseIceCandidate(candidate *webrtc.ICECandidateInit) {
+	wrtc.pc.AddICECandidate(*candidate)
 	log.Println("add remote ice candidate")
 }
 
