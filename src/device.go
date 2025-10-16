@@ -24,6 +24,7 @@ type Device struct {
 func (d *Device) Init() {
 	// create mqtt
 	d.mqtt = Mqtt{
+		id:        d.Id,
 		url:       d.MqttUrl,
 		onRequest: d.onMqttRequest,
 	}
