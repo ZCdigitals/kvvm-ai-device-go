@@ -27,7 +27,7 @@ func (c *Mqtt) Init() {
 
 	uu, err := url.Parse(c.url)
 	if err != nil {
-		log.Fatalf("mqtt url parse error %s",err)
+		log.Fatalf("mqtt url parse error %s", err)
 	}
 
 	up, upe := uu.User.Password()
