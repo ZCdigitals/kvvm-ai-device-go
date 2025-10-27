@@ -161,7 +161,7 @@ func (h *HidController) Open() {
 
 // Close 关闭设备
 func (h *HidController) Close() {
-	if h.fd != nil {
+	if h.fd == nil {
 		return
 	}
 
@@ -169,7 +169,7 @@ func (h *HidController) Close() {
 	if err != nil {
 		log.Printf("hid controller close error %s", err)
 	}
-
+	h.fd = nil
 }
 
 // WriteReport 写入报告

@@ -1,11 +1,169 @@
 package src
 
 import (
+	"encoding/binary"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"os"
 	"os/exec"
 )
+
+type MediaFrameHeader struct {
+	id     uint32
+	width  uint32
+	height uint32
+	// pixel color format, only support nv12
+	//
+	// 0 nv12
+	format    uint32
+	timestamp uint64
+	size      uint32
+	reserved  uint32
+}
+
+func ParseMediaFrameHeader(b []byte) MediaFrameHeader {
+	return MediaFrameHeader{
+		id:        binary.LittleEndian.Uint32(b[0:4]),
+		width:     binary.LittleEndian.Uint32(b[4:8]),
+		height:    binary.LittleEndian.Uint32(b[8:12]),
+		format:    binary.LittleEndian.Uint32(b[12:16]),
+		timestamp: binary.LittleEndian.Uint64(b[16:24]),
+		size:      binary.LittleEndian.Uint32(b[24:28]),
+		reserved:  binary.LittleEndian.Uint32(b[28:32]),
+	}
+}
+
+type MediaSocketOnData func(header *MediaFrameHeader, frame []byte)
+
+type MediaSocket struct {
+	path       string
+	listener   net.Listener
+	connection net.Conn
+	onData     MediaSocketOnData
+
+	cmd *exec.Cmd
+}
+
+func NewMediaSocket(path string) *MediaSocket {
+	return &MediaSocket{
+		path: path,
+	}
+}
+
+func (m *MediaSocket) Init() error {
+	var err error
+
+	// delete exists
+	os.Remove(m.path)
+
+	// start listen
+	m.listener, err = net.Listen("unix", m.path)
+	if err != nil {
+		log.Fatalf("media socket listen error %s\n", err)
+	}
+
+	// chmod
+	err = os.Chmod(m.path, 0666)
+	if err != nil {
+		log.Fatalf("media socket chmod error %s\n", err)
+	}
+
+	go m.accept()
+
+	return nil
+}
+
+func (m *MediaSocket) accept() {
+	for {
+		c, err := m.listener.Accept()
+		if err != nil {
+			log.Printf("media socket accept error %s\n", err)
+			continue
+		}
+		m.connection = c
+
+		go m.handle()
+	}
+}
+
+func (m *MediaSocket) handle() {
+	if m.connection == nil {
+		return
+	}
+
+	defer m.connection.Close()
+
+	// data is h264 encoded, 1MB should be enough
+	buffer := make([]byte, 1024*1024)
+
+	var header MediaFrameHeader
+	for {
+		err := m.read(buffer[:32])
+		if err != nil {
+			log.Fatalf("media read header error %s\n", err)
+		}
+
+		// parse header
+		header = ParseMediaFrameHeader(buffer[:32])
+
+		// check size
+		if header.size == 0 {
+			fmt.Printf("media frame header size is 0\n")
+			continue
+		} else if header.size > uint32(len(buffer)) {
+			fmt.Printf("media frame header size is too larger %d\n", header.size)
+			continue
+		}
+
+		frame := make([]byte, header.size)
+		err = m.read(frame)
+		if err != nil {
+			log.Fatalf("media read data error %s\n", err)
+		}
+
+		if m.onData != nil {
+			m.onData(&header, frame)
+		}
+	}
+}
+
+func (m *MediaSocket) read(buffer []byte) error {
+	if m.connection == nil {
+		return nil
+	}
+
+	total := 0
+	for total < len(buffer) {
+		n, err := m.connection.Read(buffer[total:])
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+		total += n
+	}
+
+	if total != len(buffer) {
+		return fmt.Errorf("incomplete read: expected %d, got %d", total, len(buffer))
+	}
+
+	return nil
+}
+
+func (m *MediaSocket) Close() {
+	if m.connection != nil {
+		m.connection.Close()
+	}
+	if m.listener != nil {
+		m.listener.Close()
+	}
+	os.Remove(m.path)
+	if m.cmd != nil {
+		m.cmd.Cancel()
+	}
+}
 
 type Rtp struct {
 	device string

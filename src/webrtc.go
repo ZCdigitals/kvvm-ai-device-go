@@ -2,6 +2,7 @@ package src
 
 import (
 	"log"
+	"time"
 
 	// This is required to register screen adapter
 	// "github.com/pion/mediadevices/pkg/driver/screen"
@@ -10,17 +11,18 @@ import (
 	// "github.com/pion/mediadevices/pkg/driver/camera"
 
 	"github.com/pion/webrtc/v4"
+	"github.com/pion/webrtc/v4/pkg/media"
 )
 
-type WebRTCOnIceCandidate func(candidate *webrtc.ICECandidateInit)
+type WebRTCOnIceCandidate func(candidate webrtc.ICECandidateInit)
 type WebRTCOnDataChannelMessage func(msg []byte)
 
 type WebRTC struct {
 	pc *webrtc.PeerConnection
 
 	// video track
-	vt        *webrtc.TrackLocalStaticRTP
-	rtpSender *webrtc.RTPSender
+	vt            *webrtc.TrackLocalStaticSample
+	lastFrameTime time.Time
 
 	// close
 	onClose func()
@@ -75,7 +77,7 @@ func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer) {
 		}
 		if cddt != nil {
 			cj := cddt.ToJSON()
-			wrtc.onIceCandidate(&cj)
+			wrtc.onIceCandidate(cj)
 		} else {
 			// there cloud be null candidate, this is legal, just ignore it
 			// wrtc.onIceCandidate(nil)
@@ -159,15 +161,6 @@ func (wrtc *WebRTC) Close() {
 		wrtc.vt = nil
 	}
 
-	if wrtc.rtpSender != nil {
-		err := wrtc.rtpSender.Stop()
-		if err != nil {
-			log.Printf("wrtc rtp sender stop error %s", err)
-		}
-
-		wrtc.rtpSender = nil
-	}
-
 	if wrtc.pc != nil {
 		err := wrtc.pc.Close()
 		if err != nil {
@@ -176,8 +169,8 @@ func (wrtc *WebRTC) Close() {
 	}
 }
 
-func (wrtc *WebRTC) UseOffer(offer *webrtc.SessionDescription) webrtc.SessionDescription {
-	err := wrtc.pc.SetRemoteDescription(*offer)
+func (wrtc *WebRTC) UseOffer(offer webrtc.SessionDescription) webrtc.SessionDescription {
+	err := wrtc.pc.SetRemoteDescription(offer)
 	if err != nil {
 		log.Fatalf("use remote offer error %s", err)
 	}
@@ -198,17 +191,17 @@ func (wrtc *WebRTC) UseOffer(offer *webrtc.SessionDescription) webrtc.SessionDes
 	return answer
 }
 
-func (wrtc *WebRTC) UseIceCandidate(candidate *webrtc.ICECandidateInit) {
-	wrtc.pc.AddICECandidate(*candidate)
+func (wrtc *WebRTC) UseIceCandidate(candidate webrtc.ICECandidateInit) {
+	wrtc.pc.AddICECandidate(candidate)
 	log.Println("add remote ice candidate")
 }
 
 func (wrtc *WebRTC) UseTrack(capability webrtc.RTPCodecCapability) {
 	// Create a video track
-	vt, err := webrtc.NewTrackLocalStaticRTP(
+	vt, err := webrtc.NewTrackLocalStaticSample(
 		capability,
 		"video",
-		"pion",
+		"kvvm",
 	)
 
 	if err != nil {
@@ -216,30 +209,20 @@ func (wrtc *WebRTC) UseTrack(capability webrtc.RTPCodecCapability) {
 	}
 	log.Println("create video track")
 
-	rtpSender, err := wrtc.pc.AddTrack(vt)
+	_, err = wrtc.pc.AddTrack(vt)
 	if err != nil {
 		log.Fatalf("add track error %s", err)
 	}
 	log.Println("add track")
 
-	// Read incoming RTCP packets
-	// Before these packets are returned they are processed by interceptors. For things
-	// like NACK this needs to be called.
-	go func() {
-		rtcpBuf := make([]byte, 1500)
-		for {
-			if _, _, rtcpErr := rtpSender.Read(rtcpBuf); rtcpErr != nil {
-				return
-			}
-		}
-	}()
-
 	wrtc.vt = vt
-	wrtc.rtpSender = rtpSender
+	wrtc.lastFrameTime = time.Now()
 }
 
-func (wrtc *WebRTC) WriteVideoTrack(b []byte) error {
-	_, err := wrtc.vt.Write(b)
+func (wrtc *WebRTC) WriteVideoTrack(b []byte, timestamp uint64) error {
+	t := time.UnixMicro(int64(timestamp))
+	err := wrtc.vt.WriteSample(media.Sample{Data: b, Duration: wrtc.lastFrameTime.Sub(t)})
+	wrtc.lastFrameTime = t
 
 	return err
 }

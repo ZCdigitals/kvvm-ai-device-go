@@ -2,8 +2,6 @@ package src
 
 import (
 	"encoding/json"
-	"errors"
-	"io"
 	"log"
 	"time"
 
@@ -17,7 +15,7 @@ type Device struct {
 	mqtt Mqtt
 
 	wrtc WebRTC
-	rtp  Rtp
+	ms   MediaSocket
 	hid  HidController
 }
 
@@ -34,13 +32,13 @@ func (d *Device) Init() {
 	d.wrtc = WebRTC{
 		onIceCandidate: d.sendIceCandidate,
 		onClose: func() {
-			d.rtp.Close()
+			d.ms.Close()
 			d.hid.Close()
 		},
 	}
 
 	// create rtp
-	d.rtp = Rtp{device: "/dev/video0", ip: "0.0.0.0", port: 5004}
+	d.ms = *NewMediaSocket("/tmp/capture.sock")
 
 	// create hid
 	d.hid = HidController{Path: "/dev/hidg0"}
@@ -51,7 +49,7 @@ func (d *Device) Close() {
 
 	d.wrtc.Close()
 
-	d.rtp.Close()
+	d.ms.Close()
 
 	d.hid.Close()
 }
@@ -85,19 +83,19 @@ type DeviceMessage struct {
 	Type DeviceMessageType `json:"type,omitempty"`
 
 	// webrtc start
-	IceServers *[]DeviceMessageIceServer `json:"iceServers,omitempty"`
-	Video      bool                      `json:"video,omitempty"`
-	Hid        bool                      `json:"hid,omitempty"`
+	IceServers []DeviceMessageIceServer `json:"iceServers,omitempty"`
+	Video      bool                     `json:"video,omitempty"`
+	Hid        bool                     `json:"hid,omitempty"`
 
 	// webrtc ice candidate
-	IceCandidate  *webrtc.ICECandidateInit   `json:"iceCandidate,omitempty"`
-	IceCandidates *[]webrtc.ICECandidateInit `json:"iceCandidates,omitempty"`
+	IceCandidate  webrtc.ICECandidateInit   `json:"iceCandidate,omitempty"`
+	IceCandidates []webrtc.ICECandidateInit `json:"iceCandidates,omitempty"`
 
 	// webrtc offer
-	Offer *webrtc.SessionDescription `json:"offer,omitempty"`
+	Offer webrtc.SessionDescription `json:"offer,omitempty"`
 
 	// webrtc answer
-	Answer *webrtc.SessionDescription `json:"answer,omitempty"`
+	Answer webrtc.SessionDescription `json:"answer,omitempty"`
 }
 
 func (d *Device) onMqttRequest(msg []byte) {
@@ -119,7 +117,7 @@ func (d *Device) onMqttRequest(msg []byte) {
 				DeviceMessage{
 					Time:   time.Now().Unix(),
 					Type:   WebRTCAnswer,
-					Answer: &answer,
+					Answer: answer,
 				},
 			)
 		}
@@ -146,8 +144,8 @@ type DeviceHttpData struct {
 
 func (d *Device) onWebRTCStart(msg DeviceMessage) {
 	// use ice servers
-	iss := make([]webrtc.ICEServer, len(*msg.IceServers))
-	for i, v := range *msg.IceServers {
+	iss := make([]webrtc.ICEServer, len(msg.IceServers))
+	for i, v := range msg.IceServers {
 		iss[i] = v.ToWebrtcIceServer()
 	}
 
@@ -160,31 +158,15 @@ func (d *Device) onWebRTCStart(msg DeviceMessage) {
 		d.wrtc.UseTrack(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264})
 		log.Println("webrtc use track")
 
-		go func() {
-			// Read RTP packets forever and send them to the WebRTC Client
-			inboundRTPPacket := make([]byte, 1600) // UDP MTU
+		d.ms.onData = func(header *MediaFrameHeader, frame []byte) {
+			println("track data")
+			d.wrtc.WriteVideoTrack(frame, header.timestamp)
+		}
 
-			for {
-				n, err := d.rtp.Read(inboundRTPPacket)
-
-				if err != nil {
-					log.Fatalf("device rtp read error %s", err)
-				}
-
-				err = d.wrtc.WriteVideoTrack(inboundRTPPacket[:n])
-
-				if err != nil {
-					if errors.Is(err, io.ErrClosedPipe) {
-						// The peerConnection has been closed.
-						return
-					}
-
-					log.Fatalf("device rtp write error %s", err)
-				}
-			}
-		}()
-
-		d.rtp.Init()
+		err := d.ms.Init()
+		if err != nil {
+			log.Printf("media init error %s", err)
+		}
 	}
 
 	// use hid
@@ -228,7 +210,7 @@ func (d *Device) onWebRTCStart(msg DeviceMessage) {
 	)
 }
 
-func (d *Device) sendIceCandidate(candidate *webrtc.ICECandidateInit) {
+func (d *Device) sendIceCandidate(candidate webrtc.ICECandidateInit) {
 	d.mqtt.PublishResponse(
 		DeviceMessage{
 			Time:         time.Now().Unix(),
