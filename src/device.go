@@ -88,14 +88,14 @@ type DeviceMessage struct {
 	Hid        bool                     `json:"hid,omitempty"`
 
 	// webrtc ice candidate
-	IceCandidate  webrtc.ICECandidateInit   `json:"iceCandidate,omitempty"`
+	IceCandidate  *webrtc.ICECandidateInit  `json:"iceCandidate,omitempty"`
 	IceCandidates []webrtc.ICECandidateInit `json:"iceCandidates,omitempty"`
 
 	// webrtc offer
-	Offer webrtc.SessionDescription `json:"offer,omitempty"`
+	Offer *webrtc.SessionDescription `json:"offer,omitempty"`
 
 	// webrtc answer
-	Answer webrtc.SessionDescription `json:"answer,omitempty"`
+	Answer *webrtc.SessionDescription `json:"answer,omitempty"`
 }
 
 func (d *Device) onMqttRequest(msg []byte) {
@@ -159,7 +159,6 @@ func (d *Device) onWebRTCStart(msg DeviceMessage) {
 		log.Println("webrtc use track")
 
 		d.ms.onData = func(header *MediaFrameHeader, frame []byte) {
-			println("track data")
 			d.wrtc.WriteVideoTrack(frame, header.timestamp)
 		}
 
@@ -210,7 +209,7 @@ func (d *Device) onWebRTCStart(msg DeviceMessage) {
 	)
 }
 
-func (d *Device) sendIceCandidate(candidate webrtc.ICECandidateInit) {
+func (d *Device) sendIceCandidate(candidate *webrtc.ICECandidateInit) {
 	d.mqtt.PublishResponse(
 		DeviceMessage{
 			Time:         time.Now().Unix(),

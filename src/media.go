@@ -10,6 +10,8 @@ import (
 	"os/exec"
 )
 
+const VIDEO_CMD string = "video"
+
 type MediaFrameHeader struct {
 	id     uint32
 	width  uint32
@@ -43,12 +45,14 @@ type MediaSocket struct {
 	connection net.Conn
 	onData     MediaSocketOnData
 
-	cmd *exec.Cmd
+	cmd      *exec.Cmd
+	stopChan chan struct{}
 }
 
 func NewMediaSocket(path string) *MediaSocket {
 	return &MediaSocket{
-		path: path,
+		path:     path,
+		stopChan: make(chan struct{}),
 	}
 }
 
@@ -65,9 +69,16 @@ func (m *MediaSocket) Init() error {
 	}
 
 	// chmod
-	err = os.Chmod(m.path, 0666)
+	// err = os.Chmod(m.path, 0666)
+	// if err != nil {
+	// 	log.Fatalf("media socket chmod error %s\n", err)
+	// }
+
+	m.cmd = exec.Command(VIDEO_CMD)
+	err = m.cmd.Start()
 	if err != nil {
-		log.Fatalf("media socket chmod error %s\n", err)
+		m.listener.Close()
+		return fmt.Errorf("media socket cmd start error %s", err)
 	}
 
 	go m.accept()
@@ -76,24 +87,20 @@ func (m *MediaSocket) Init() error {
 }
 
 func (m *MediaSocket) accept() {
-	for {
-		c, err := m.listener.Accept()
-		if err != nil {
-			log.Printf("media socket accept error %s\n", err)
-			continue
-		}
-		m.connection = c
-
-		go m.handle()
+	c, err := m.listener.Accept()
+	if err != nil {
+		log.Printf("media socket accept error %s\n", err)
+		return
 	}
+	m.connection = c
+
+	go m.handle()
 }
 
 func (m *MediaSocket) handle() {
 	if m.connection == nil {
 		return
 	}
-
-	defer m.connection.Close()
 
 	// data is h264 encoded, 1MB should be enough
 	buffer := make([]byte, 1024*1024)
@@ -102,7 +109,8 @@ func (m *MediaSocket) handle() {
 	for {
 		err := m.read(buffer[:32])
 		if err != nil {
-			log.Fatalf("media read header error %s\n", err)
+			log.Printf("media read header error %s\n", err)
+			return
 		}
 
 		// parse header
@@ -110,21 +118,22 @@ func (m *MediaSocket) handle() {
 
 		// check size
 		if header.size == 0 {
-			fmt.Printf("media frame header size is 0\n")
+			log.Printf("media frame header %d size is 0\n", header.id)
 			continue
 		} else if header.size > uint32(len(buffer)) {
-			fmt.Printf("media frame header size is too larger %d\n", header.size)
+			log.Printf("media frame header %d size is too larger %d\n", header.id, header.size)
 			continue
 		}
 
 		frame := make([]byte, header.size)
 		err = m.read(frame)
 		if err != nil {
-			log.Fatalf("media read data error %s\n", err)
+			log.Printf("media read data error %s\n", err)
+			return
 		}
 
 		if m.onData != nil {
-			m.onData(&header, frame)
+			go m.onData(&header, frame)
 		}
 	}
 }
@@ -153,6 +162,9 @@ func (m *MediaSocket) read(buffer []byte) error {
 }
 
 func (m *MediaSocket) Close() {
+	if m.cmd != nil {
+		m.cmd.Process.Signal(os.Interrupt)
+	}
 	if m.connection != nil {
 		m.connection.Close()
 	}
@@ -160,9 +172,6 @@ func (m *MediaSocket) Close() {
 		m.listener.Close()
 	}
 	os.Remove(m.path)
-	if m.cmd != nil {
-		m.cmd.Cancel()
-	}
 }
 
 type Rtp struct {
