@@ -45,18 +45,19 @@ type MediaSocket struct {
 	connection net.Conn
 	onData     MediaSocketOnData
 
-	cmd      *exec.Cmd
-	stopChan chan struct{}
+	cmd    *exec.Cmd
+	closed bool
 }
 
 func NewMediaSocket(path string) *MediaSocket {
 	return &MediaSocket{
-		path:     path,
-		stopChan: make(chan struct{}),
+		path:   path,
+		closed: true,
 	}
 }
 
 func (m *MediaSocket) Init() error {
+	m.closed = false
 	var err error
 
 	// delete exists
@@ -132,10 +133,16 @@ func (m *MediaSocket) handle() {
 			return
 		}
 
+		if m.closed {
+			break
+		}
+
 		if m.onData != nil {
-			go m.onData(&header, frame)
+			m.onData(&header, frame)
 		}
 	}
+
+	m.close()
 }
 
 func (m *MediaSocket) read(buffer []byte) error {
@@ -161,17 +168,30 @@ func (m *MediaSocket) read(buffer []byte) error {
 	return nil
 }
 
-func (m *MediaSocket) Close() {
+func (m *MediaSocket) close() {
 	if m.cmd != nil {
-		m.cmd.Process.Signal(os.Interrupt)
+		err := m.cmd.Process.Signal(os.Interrupt)
+		if err != nil {
+			log.Printf("media cmd stop error %s\n", err)
+		}
 	}
 	if m.connection != nil {
-		m.connection.Close()
+		err := m.connection.Close()
+		if err != nil {
+			log.Printf("media connection close error %s\n", err)
+		}
 	}
 	if m.listener != nil {
-		m.listener.Close()
+		err := m.listener.Close()
+		if err != nil {
+			log.Printf("media listener close error %s\n", err)
+		}
 	}
 	os.Remove(m.path)
+}
+
+func (m *MediaSocket) Close() {
+	m.closed = true
 }
 
 type Rtp struct {
