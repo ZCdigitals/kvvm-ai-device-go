@@ -10,7 +10,7 @@ import (
 	"os/exec"
 )
 
-const VIDEO_CMD string = "video"
+const VIDEO_CMD string = "/root/video"
 
 type MediaFrameHeader struct {
 	id     uint32
@@ -75,7 +75,12 @@ func (m *MediaSocket) Init() error {
 	// 	log.Fatalf("media socket chmod error %s\n", err)
 	// }
 
-	m.cmd = exec.Command(VIDEO_CMD)
+	m.cmd = exec.Command(VIDEO_CMD,
+		"-w", "1920",
+		"-h", "1080",
+		"-i", "/dev/video0",
+		"-o", "/var/run/capture.sock",
+	)
 	err = m.cmd.Start()
 	if err != nil {
 		m.listener.Close()

@@ -4,6 +4,18 @@
 
 ### Dependences
 
+### Certs
+
+all communication must use tls when throgh public network, that is why the device must install certs.
+
+or we will get
+
+```
+Error : tls: failed to verify certificate: x509: certificate signed by unknown authority
+```
+
+a easy way is copying from your own computer. copy `/usr/share/ca-certificates` and `/etc/ssl/certs/*`.
+
 ### USB
 
 ```bash

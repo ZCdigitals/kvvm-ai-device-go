@@ -2,8 +2,8 @@
 
 # go tool dist list
 export GOOS=linux
-export GOARCH=arm64
-export GOARM=8
+export GOARCH=arm
+export GOARM=7
 export CGO_ENABLED=0
 # export CC=arm-linux-gnueabi-gcc
 

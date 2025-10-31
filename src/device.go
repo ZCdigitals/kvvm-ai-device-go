@@ -38,7 +38,8 @@ func (d *Device) Init() {
 	}
 
 	// create rtp
-	d.ms = *NewMediaSocket("/tmp/capture.sock")
+	d.ms = *NewMediaSocket("/var/run/capture.sock")
+	// d.ms = *NewMediaSocket("/tmp/capture.sock")
 
 	// create hid
 	d.hid = HidController{Path: "/dev/hidg0"}
