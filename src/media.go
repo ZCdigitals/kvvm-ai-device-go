@@ -79,8 +79,9 @@ func (m *MediaSocket) Init() error {
 		"-w", "1920",
 		"-h", "1080",
 		"-i", "/dev/video0",
-		"-o", "/var/run/capture.sock",
+		"-o", m.path,
 	)
+
 	err = m.cmd.Start()
 	if err != nil {
 		m.listener.Close()
