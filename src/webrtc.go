@@ -221,7 +221,8 @@ func (wrtc *WebRTC) UseTrack(capability webrtc.RTPCodecCapability) {
 
 func (wrtc *WebRTC) WriteVideoTrack(b []byte, timestamp uint64) error {
 	t := time.UnixMicro(int64(timestamp))
-	err := wrtc.vt.WriteSample(media.Sample{Data: b, Duration: wrtc.lastFrameTime.Sub(t)})
+	// log.Println("write video track", timestamp, int(timestamp), t)
+	err := wrtc.vt.WriteSample(media.Sample{Data: b, Duration: t.Sub(wrtc.lastFrameTime)})
 	wrtc.lastFrameTime = t
 
 	return err
