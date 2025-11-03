@@ -4,6 +4,7 @@ package main
 import (
 	"device-go/src"
 	"flag"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,10 +13,17 @@ import (
 func main() {
 	var id string
 	var url string
+	var version bool
 
 	flag.StringVar(&id, "device-id", "", "设备ID")
 	flag.StringVar(&url, "mqtt-broker", "mqtt://device:device12345@localhost:1883", "MQTT代理地址")
+	flag.BoolVar(&version, "version", false, "Print version")
 	flag.Parse()
+
+	if version {
+		log.Println(src.VersionLong())
+		return
+	}
 
 	// 初始化
 	d := src.Device{Id: id, MqttUrl: url}
