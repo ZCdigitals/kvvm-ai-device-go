@@ -12,11 +12,13 @@ import (
 
 func main() {
 	var id string
-	var url string
+	var mqtt string
+	var ws string
 	var version bool
 
-	flag.StringVar(&id, "device-id", "", "设备ID")
-	flag.StringVar(&url, "mqtt-broker", "mqtt://device:device12345@localhost:1883", "MQTT代理地址")
+	flag.StringVar(&id, "device-id", "", "Device ID")
+	flag.StringVar(&mqtt, "mqtt-broker", "mqtt://device:device12345@localhost:1883", "MQTT broker url")
+	flag.StringVar(&ws, "websocket", "ws://localhost:1883", "Websocket server url")
 	flag.BoolVar(&version, "version", false, "Print version")
 	flag.Parse()
 
@@ -26,7 +28,7 @@ func main() {
 	}
 
 	// 初始化
-	d := src.Device{Id: id, MqttUrl: url}
+	d := src.Device{Id: id, MqttUrl: mqtt, WsUrl: ws}
 	d.Init()
 
 	// 退出

@@ -24,19 +24,11 @@ type WebRTC struct {
 	vt            *webrtc.TrackLocalStaticSample
 	lastFrameTime time.Time
 
-	// close
-	onClose func()
-
 	// ice candidate
 	onIceCandidate WebRTCOnIceCandidate
 
-	// hid data channel
-	hidChannel   *webrtc.DataChannel
-	onHidMessage WebRTCOnDataChannelMessage
-
-	// http data channel
-	httpChannel   *webrtc.DataChannel
-	onHttpMessage WebRTCOnDataChannelMessage
+	// data channels
+	dataChannels []*webrtc.DataChannel
 }
 
 func (wrtc *WebRTC) Init() {}
@@ -83,78 +75,11 @@ func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer) {
 			// wrtc.onIceCandidate(nil)
 		}
 	})
-
-	// handle data channel
-	pc.OnDataChannel(func(dc *webrtc.DataChannel) {
-		switch dc.Label() {
-		// hid data
-		case "hid":
-			{
-				wrtc.hidChannel = dc
-
-				dc.OnClose(func() {
-					log.Println("hid data channel close")
-					wrtc.hidChannel.Close()
-					wrtc.hidChannel = nil
-				})
-
-				dc.OnOpen(func() {
-					log.Println("hid data channel open")
-				})
-
-				if wrtc.onHidMessage != nil {
-					dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-						wrtc.onHidMessage(msg.Data)
-					})
-				}
-			}
-		case "http":
-			{
-				wrtc.httpChannel = dc
-
-				dc.OnClose(func() {
-					log.Println("http data channel close")
-					wrtc.httpChannel.Close()
-					wrtc.httpChannel = nil
-				})
-
-				dc.OnOpen(func() {
-					log.Println("http data channel open")
-				})
-
-				if wrtc.onHttpMessage != nil {
-					dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-						wrtc.onHttpMessage(msg.Data)
-					})
-				}
-			}
-		default:
-			log.Println("unknown data channel", dc.Label())
-		}
-	})
 }
 
 func (wrtc *WebRTC) Close() {
-	if wrtc.onClose != nil {
-		wrtc.onClose()
-	}
-
-	if wrtc.hidChannel != nil {
-		err := wrtc.hidChannel.Close()
-		if err != nil {
-			log.Printf("wrtc hid channel close error %s", err)
-		}
-
-		wrtc.hidChannel = nil
-	}
-
-	if wrtc.httpChannel != nil {
-		err := wrtc.httpChannel.Close()
-		if err != nil {
-			log.Printf("wrtc http channel close error %s", err)
-		}
-
-		wrtc.httpChannel = nil
+	for _, dc := range wrtc.dataChannels {
+		dc.Close()
 	}
 
 	if wrtc.vt != nil {
@@ -228,12 +153,14 @@ func (wrtc *WebRTC) WriteVideoTrack(b []byte, timestamp uint64) error {
 	return err
 }
 
-func (wrtc *WebRTC) SendHttpMessage(b []byte) error {
-	if wrtc.httpChannel == nil {
+func (wrtc *WebRTC) CreateDataChannel(label string) *webrtc.DataChannel {
+	dc, err := wrtc.pc.CreateDataChannel(label, &webrtc.DataChannelInit{})
+	if err != nil {
+		log.Printf("wrtc data channel create error %s", err)
 		return nil
 	}
 
-	err := wrtc.hidChannel.Send(b)
+	wrtc.dataChannels = append(wrtc.dataChannels, dc)
 
-	return err
+	return dc
 }

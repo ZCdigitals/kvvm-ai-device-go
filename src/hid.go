@@ -25,9 +25,11 @@ type HidMouseData struct {
 // NewHidMouseData 创建鼠标数据
 func NewHidMouseData(x, y int, buttons ...bool) *HidMouseData {
 	if x < 0 || x >= 32768 {
-		log.Fatalln("x must be in [0, 32768)")
+		log.Println("x must be in [0, 32768)")
+		return &HidMouseData{}
 	} else if y < 0 || y >= 32768 {
-		log.Fatalln("y must be in [0, 32768)")
+		log.Println("y must be in [0, 32768)")
+		return &HidMouseData{}
 	}
 
 	data := &HidMouseData{
@@ -145,18 +147,22 @@ type HidController struct {
 }
 
 // Open
-func (h *HidController) Open() {
+func (h *HidController) Open() error {
+	var err error
+
 	if h.fd != nil {
-		err := h.fd.Close()
+		err = h.fd.Close()
 		log.Printf("close hid device error %s", err)
 	}
 
 	fd, err := os.OpenFile(h.Path, os.O_WRONLY, 0644)
 	if err != nil {
-		log.Fatalf("failed to open device %s", err)
+		log.Printf("failed to open device %s", err)
 	}
 
 	h.fd = fd
+
+	return err
 }
 
 // Close 关闭设备

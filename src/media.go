@@ -45,19 +45,18 @@ type MediaSocket struct {
 	connection net.Conn
 	onData     MediaSocketOnData
 
-	cmd    *exec.Cmd
-	closed bool
+	cmd     *exec.Cmd
+	running bool
 }
 
-func NewMediaSocket(path string) *MediaSocket {
-	return &MediaSocket{
-		path:   path,
-		closed: true,
+func NewMediaSocket(path string) MediaSocket {
+	return MediaSocket{
+		path:    path,
+		running: false,
 	}
 }
 
 func (m *MediaSocket) Init() error {
-	m.closed = false
 	var err error
 
 	// delete exists
@@ -66,13 +65,13 @@ func (m *MediaSocket) Init() error {
 	// start listen
 	m.listener, err = net.Listen("unix", m.path)
 	if err != nil {
-		log.Fatalf("media socket listen error %s\n", err)
+		return err
 	}
 
 	// chmod
 	// err = os.Chmod(m.path, 0666)
 	// if err != nil {
-	// 	log.Fatalf("media socket chmod error %s\n", err)
+	// 	return err
 	// }
 
 	m.cmd = exec.Command(VIDEO_CMD,
@@ -100,8 +99,9 @@ func (m *MediaSocket) accept() {
 		return
 	}
 	m.connection = c
+	defer m.Close()
 
-	go m.handle()
+	m.handle()
 }
 
 func (m *MediaSocket) handle() {
@@ -113,7 +113,7 @@ func (m *MediaSocket) handle() {
 	buffer := make([]byte, 1024*1024)
 
 	var header MediaFrameHeader
-	for {
+	for m.running {
 		err := m.read(buffer[:32])
 		if err != nil {
 			log.Printf("media read header error %s\n", err)
@@ -139,16 +139,10 @@ func (m *MediaSocket) handle() {
 			return
 		}
 
-		if m.closed {
-			break
-		}
-
 		if m.onData != nil {
 			m.onData(&header, frame)
 		}
 	}
-
-	m.close()
 }
 
 func (m *MediaSocket) read(buffer []byte) error {
@@ -174,7 +168,9 @@ func (m *MediaSocket) read(buffer []byte) error {
 	return nil
 }
 
-func (m *MediaSocket) close() {
+func (m *MediaSocket) Close() {
+	m.running = false
+
 	if m.cmd != nil {
 		err := m.cmd.Process.Signal(os.Interrupt)
 		if err != nil {
@@ -196,11 +192,7 @@ func (m *MediaSocket) close() {
 	os.Remove(m.path)
 }
 
-func (m *MediaSocket) Close() {
-	m.closed = true
-}
-
-type Rtp struct {
+type MediaRtp struct {
 	device string
 	ip     string
 	port   int
@@ -210,7 +202,7 @@ type Rtp struct {
 	cmd *exec.Cmd
 }
 
-func (rtp *Rtp) Init() {
+func (rtp *MediaRtp) Init() error {
 	if rtp.listener != nil {
 		err := rtp.listener.Close()
 
@@ -232,7 +224,7 @@ func (rtp *Rtp) Init() {
 		Port: rtp.port,
 	})
 	if err != nil {
-		log.Fatalf("rtp listen error %s", err)
+		return err
 	}
 
 	// Increase the UDP receive buffer size
@@ -240,7 +232,7 @@ func (rtp *Rtp) Init() {
 	bufferSize := 300000 // 300KB
 	err = listener.SetReadBuffer(bufferSize)
 	if err != nil {
-		log.Fatalf("rtp set buffer size error %s", err)
+		return err
 	}
 
 	log.Println("rtp listen start")
@@ -257,11 +249,13 @@ func (rtp *Rtp) Init() {
 
 	err = rtp.cmd.Start()
 	if err != nil {
-		log.Fatalf("run gstreamer error %s", err)
+		return err
 	}
+
+	return nil
 }
 
-func (rtp *Rtp) Close() {
+func (rtp *MediaRtp) Close() {
 	if rtp.cmd != nil {
 		err := rtp.cmd.Cancel()
 
@@ -278,7 +272,7 @@ func (rtp *Rtp) Close() {
 	}
 }
 
-func (rtp *Rtp) Read(b []byte) (int, error) {
+func (rtp *MediaRtp) Read(b []byte) (int, error) {
 	n, _, err := rtp.listener.ReadFrom(b)
 	return n, err
 }

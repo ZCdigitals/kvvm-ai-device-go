@@ -10,59 +10,87 @@ import (
 
 type Device struct {
 	Id      string
+	WsUrl   string
 	MqttUrl string
 
-	mqtt Mqtt
+	// signal resources
+	mqtt *Mqtt
+	ws   *WebSocket
 
+	// webrtc
 	wrtc WebRTC
-	ms   MediaSocket
-	hid  HidController
+
+	// device resources
+	ms  MediaSocket
+	hid HidController
 }
 
 func (d *Device) Init() {
-	// create mqtt
-	d.mqtt = Mqtt{
-		id:        d.Id,
-		url:       d.MqttUrl,
-		onRequest: d.onMqttRequest,
+	if d.MqttUrl != "" {
+		// create mqtt
+		d.mqtt = &Mqtt{
+			id:  d.Id,
+			url: d.MqttUrl,
+			onRequest: func(msg []byte) {
+				m := d.onMessage(msg)
+				d.mqtt.publish("request", m)
+			},
+		}
 	}
-	d.mqtt.Init()
+
+	if d.WsUrl != "" {
+		// create webscoket
+		d.ws = &WebSocket{
+			url: d.WsUrl,
+			onMessage: func(msg []byte) {
+				m := d.onMessage(msg)
+				d.ws.Send(m)
+			},
+		}
+	}
+
+	if d.mqtt != nil {
+		d.mqtt.Init()
+	} else if d.ws != nil {
+		d.ws.Init()
+	} else {
+		log.Fatalln("Must set mqtt or ws")
+	}
 
 	// create webrtc
 	d.wrtc = WebRTC{
 		onIceCandidate: d.sendIceCandidate,
-		onClose: func() {
-			d.ms.Close()
-			d.hid.Close()
-		},
 	}
 
-	// create rtp
-	d.ms = *NewMediaSocket("/var/run/capture.sock")
+	// create resources
+	d.ms = NewMediaSocket("/var/run/capture.sock")
 	// d.ms = *NewMediaSocket("/tmp/capture.sock")
-
-	// create hid
 	d.hid = HidController{Path: "/dev/hidg0"}
+
 }
 
 func (d *Device) Close() {
-	d.mqtt.Close()
-
-	d.wrtc.Close()
-
+	if d.mqtt != nil {
+		d.mqtt.Close()
+	}
+	if d.ws != nil {
+		d.ws.Close()
+	}
 	d.ms.Close()
-
 	d.hid.Close()
+	d.wrtc.Close()
 }
 
 type DeviceMessageType string
 
 const (
+	WebSocketStart     DeviceMessageType = "websocket-start"
 	WebRTCStart        DeviceMessageType = "webrtc-start"
 	WebRTCStop         DeviceMessageType = "webrtc-stop"
 	WebRTCIceCandidate DeviceMessageType = "webrtc-ice-candidate"
 	WebRTCOffer        DeviceMessageType = "webrtc-offer"
 	WebRTCAnswer       DeviceMessageType = "webrtc-answer"
+	Error              DeviceMessageType = "error"
 )
 
 type DeviceMessageIceServer struct {
@@ -83,10 +111,11 @@ type DeviceMessage struct {
 	Time int64             `json:"time,omitempty"`
 	Type DeviceMessageType `json:"type,omitempty"`
 
+	// websocket url
+	WebSocketUrl string `json:"websocketUrl,omitempty"`
+
 	// webrtc start
 	IceServers []DeviceMessageIceServer `json:"iceServers,omitempty"`
-	Video      bool                     `json:"video,omitempty"`
-	Hid        bool                     `json:"hid,omitempty"`
 
 	// webrtc ice candidate
 	IceCandidate  *webrtc.ICECandidateInit  `json:"iceCandidate,omitempty"`
@@ -99,40 +128,62 @@ type DeviceMessage struct {
 	Answer *webrtc.SessionDescription `json:"answer,omitempty"`
 }
 
-func (d *Device) onMqttRequest(msg []byte) {
+func (d *Device) onMessage(msg []byte) DeviceMessage {
 	var m DeviceMessage
 	err := json.Unmarshal(msg, &m)
 	if err != nil {
-		log.Fatalf("json parse message error %s", err)
+		log.Printf("json parse message error %s", err)
+		return DeviceMessage{
+			Time: time.Now().Unix(),
+		}
 	}
 
 	switch m.Type {
+	case WebSocketStart:
+		d.onWebSocketStart(m)
+		return DeviceMessage{
+			Time: time.Now().Unix(),
+			Type: WebSocketStart,
+		}
 	case WebRTCStart:
 		d.onWebRTCStart(m)
+		return DeviceMessage{
+			Time: time.Now().Unix(),
+			Type: WebRTCStart,
+		}
 	case WebRTCIceCandidate:
 		d.wrtc.UseIceCandidate(m.IceCandidate)
+		return DeviceMessage{
+			Time: time.Now().Unix(),
+			Type: WebRTCIceCandidate,
+		}
 	case WebRTCOffer:
 		{
 			answer := d.wrtc.UseOffer(m.Offer)
-			d.mqtt.PublishResponse(
-				DeviceMessage{
-					Time:   time.Now().Unix(),
-					Type:   WebRTCAnswer,
-					Answer: answer,
-				},
-			)
+			return DeviceMessage{
+				Time:   time.Now().Unix(),
+				Type:   WebRTCAnswer,
+				Answer: answer,
+			}
 		}
+	case Error:
 	case "":
 		{
-			d.mqtt.PublishResponse(DeviceMessage{
+			return DeviceMessage{
 				Time: time.Now().Unix(),
-			})
+			}
 		}
 	default:
 		{
 			log.Println("unknown request", m.Type)
-			return
+			return DeviceMessage{
+				Time: time.Now().Unix(),
+			}
 		}
+	}
+
+	return DeviceMessage{
+		Time: time.Now().Unix(),
 	}
 }
 
@@ -154,60 +205,42 @@ func (d *Device) onWebRTCStart(msg DeviceMessage) {
 	d.wrtc.Open(iss)
 
 	// use video
-	if msg.Video {
-		// create track after open, because this cloud be optional
-		d.wrtc.UseTrack(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264})
-		log.Println("webrtc use track")
+	d.wrtc.UseTrack(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264})
+	log.Println("webrtc use track")
 
-		d.ms.onData = func(header *MediaFrameHeader, frame []byte) {
-			d.wrtc.WriteVideoTrack(frame, header.timestamp)
-		}
+	d.ms.onData = func(header *MediaFrameHeader, frame []byte) {
+		d.wrtc.WriteVideoTrack(frame, header.timestamp)
+	}
 
-		err := d.ms.Init()
-		if err != nil {
-			log.Printf("media init error %s", err)
-		}
+	err := d.ms.Init()
+	if err != nil {
+		log.Printf("media init error %s", err)
+		return
 	}
 
 	// use hid
-	if msg.Hid {
-		d.hid.Open()
-
-		d.wrtc.onHidMessage = func(msg []byte) {
-			d.hid.Send(msg)
-		}
+	err = d.hid.Open()
+	if err != nil {
+		log.Printf("hid open error %s", err)
+		return
+	}
+	dc := d.wrtc.CreateDataChannel("hid")
+	if dc == nil {
+		dc.OnMessage(func(dcmsg webrtc.DataChannelMessage) {
+			d.hid.Send(dcmsg.Data)
+		})
 	}
 
-	d.wrtc.onHttpMessage = func(msg []byte) {
-		var req HttpRequestData
-		json.Unmarshal(msg, &req)
+}
 
-		// todo, http body
-
-		res, err := SendHttpRequest(req)
-		if err != nil {
-			log.Printf("http send error %s", err)
-			return
-		}
-
-		mm, err := json.Marshal(res)
-		if err != nil {
-			log.Printf("http json error %s", err)
-			return
-		}
-
-		d.wrtc.SendHttpMessage(mm)
-
-		// todo, http body
-	}
-
-	// send start to peer
-	d.mqtt.PublishResponse(
-		DeviceMessage{
-			Time: time.Now().Unix(),
-			Type: WebRTCStart,
+func (d *Device) onWebSocketStart(msg DeviceMessage) {
+	d.ws = &WebSocket{
+		url: msg.WebSocketUrl,
+		onMessage: func(msg []byte) {
+			m := d.onMessage(msg)
+			d.ws.Send(m)
 		},
-	)
+	}
 }
 
 func (d *Device) sendIceCandidate(candidate *webrtc.ICECandidateInit) {

@@ -10,7 +10,7 @@ import (
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 )
 
-type OnRequestHandler func([]byte)
+type MqttOnRequest func(payload []byte)
 
 type Mqtt struct {
 	id  string
@@ -18,7 +18,7 @@ type Mqtt struct {
 
 	client MQTT.Client
 
-	onRequest OnRequestHandler
+	onRequest MqttOnRequest
 }
 
 func (c *Mqtt) Init() {
@@ -90,7 +90,7 @@ func (c *Mqtt) useTopic(prop string) string {
 func (c *Mqtt) publish(prop string, message any) {
 	j, err := json.Marshal(message)
 	if err != nil {
-		log.Fatalf("json string error %s", err)
+		log.Printf("json string error %s", err)
 	}
 
 	token := c.client.Publish(c.useTopic(prop), 0, false, j)

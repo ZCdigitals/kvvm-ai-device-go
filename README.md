@@ -1,10 +1,28 @@
 # KVVM.AI Device Go
 
+## Build
+
+if you need run on other platform, edit `build.sh`
+
+## Deploy
+
+copy the binary file `output/device` and `video` to target `/root/`
+
+we use absolute path currently
+
+or you may edit the `video` path in `media.go`
+
 ## Develop
 
 ### Dependences
 
+#### Video
+
+the `video` is built by `https://github.com/ZCdigitals/kvvm-ai-video`
+
 ### Certs
+
+when deploied to public network
 
 all communication must use tls when throgh public network, that is why the device must install certs.
 
@@ -36,12 +54,4 @@ v4l2-ctl -d /dev/video0 --set-fmt-video=width=1920,height=1080,pixelformat=NV12
 gst-launch-1.0 -v v4l2src device=/dev/video0 io-mode=mmap ! video/x-raw,format=NV12,width=1920,height=1080 ! mpph264enc gop=2 ! rtph264pay config-interval=-1 aggregate-mode=zero-latency ! udpsink host=127.0.0.1 port=5004
 
 gst-inspect-1.0
-```
-
-## Build
-
-### Tool chain
-
-```bash
-sudo apt search gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
 ```

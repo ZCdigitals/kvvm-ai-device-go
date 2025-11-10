@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 获取版本信息
+# get version information
 VERSION=$(cat version)
 COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
