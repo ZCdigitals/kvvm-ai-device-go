@@ -11,6 +11,7 @@ import (
 type Device struct {
 	Id      string
 	WsUrl   string
+	WsKey   string
 	MqttUrl string
 
 	// signal resources
@@ -42,6 +43,7 @@ func (d *Device) Init() {
 		// create webscoket
 		d.ws = &WebSocket{
 			url: d.WsUrl,
+			key: d.WsKey,
 			onMessage: func(msg []byte) {
 				m := d.onMessage(msg)
 				d.ws.Send(m)
@@ -60,6 +62,14 @@ func (d *Device) Init() {
 	// create webrtc
 	d.wrtc = WebRTC{
 		onIceCandidate: d.sendIceCandidate,
+		onClose: func() {
+			if d.mqtt != nil {
+				d.ws.Close()
+				d.ws = nil
+			}
+			d.ms.Close()
+			d.hid.Close()
+		},
 	}
 
 	// create resources
@@ -206,34 +216,36 @@ func (d *Device) onWebRTCStart(msg DeviceMessage) {
 
 	// use video
 	d.wrtc.UseTrack(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264})
-	log.Println("webrtc use track")
+	// log.Println("webrtc use track")
 
-	d.ms.onData = func(header *MediaFrameHeader, frame []byte) {
-		d.wrtc.WriteVideoTrack(frame, header.timestamp)
-	}
+	// d.ms.onData = func(header *MediaFrameHeader, frame []byte) {
+	// 	d.wrtc.WriteVideoTrack(frame, header.timestamp)
+	// }
 
-	err := d.ms.Init()
-	if err != nil {
-		log.Printf("media init error %s", err)
-		return
-	}
+	// err := d.ms.Init()
+	// if err != nil {
+	// 	log.Printf("media init error %s", err)
+	// 	return
+	// }
 
-	// use hid
-	err = d.hid.Open()
-	if err != nil {
-		log.Printf("hid open error %s", err)
-		return
-	}
+	// // use hid
+	// err = d.hid.Open()
+	// if err != nil {
+	// 	log.Printf("hid open error %s", err)
+	// 	return
+	// }
 	dc := d.wrtc.CreateDataChannel("hid")
-	if dc == nil {
-		dc.OnMessage(func(dcmsg webrtc.DataChannelMessage) {
-			d.hid.Send(dcmsg.Data)
-		})
-	}
-
+	// if dc == nil {
+	// 	dc.OnMessage(func(dcmsg webrtc.DataChannelMessage) {
+	// 		d.hid.Send(dcmsg.Data)
+	// 	})
+	// }
 }
 
 func (d *Device) onWebSocketStart(msg DeviceMessage) {
+	if d.ws == nil {
+		return
+	}
 	d.ws = &WebSocket{
 		url: msg.WebSocketUrl,
 		onMessage: func(msg []byte) {

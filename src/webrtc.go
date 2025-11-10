@@ -29,6 +29,9 @@ type WebRTC struct {
 
 	// data channels
 	dataChannels []*webrtc.DataChannel
+
+	// on close
+	onClose func()
 }
 
 func (wrtc *WebRTC) Init() {}
@@ -78,6 +81,10 @@ func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer) {
 }
 
 func (wrtc *WebRTC) Close() {
+	if wrtc.onClose != nil {
+		wrtc.onClose()
+	}
+
 	for _, dc := range wrtc.dataChannels {
 		dc.Close()
 	}
