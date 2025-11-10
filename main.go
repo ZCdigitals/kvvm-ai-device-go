@@ -18,9 +18,10 @@ func main() {
 	var version bool
 
 	flag.StringVar(&id, "device-id", "", "Device ID")
-	flag.StringVar(&mqtt, "mqtt-broker", "mqtt://device:device12345@localhost:1883", "MQTT broker url")
+	flag.StringVar(&mqtt, "mqtt-broker", "", "MQTT broker url")
+	// flag.StringVar(&mqtt, "mqtt-broker", "mqtt://device:device12345@localhost:1883", "MQTT broker url")
 	flag.StringVar(&ws, "websocket", "ws://localhost:1883", "Websocket server url")
-	flag.StringVar(&ws, "websocket-key", "", "Websocket key")
+	flag.StringVar(&wsKey, "websocket-key", "", "Websocket key")
 	flag.BoolVar(&version, "version", false, "Print version")
 	flag.Parse()
 
@@ -29,7 +30,7 @@ func main() {
 		return
 	}
 
-	if ws != "" && wsKey == "" {
+	if (ws != "" && wsKey == "") || (ws == "" && wsKey != "") {
 		log.Fatalln("Must input websocket-key when enable websocket")
 	}
 

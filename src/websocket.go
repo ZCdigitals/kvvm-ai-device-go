@@ -2,8 +2,11 @@ package src
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"net/url"
+	"sync"
 
 	"github.com/gorilla/websocket"
 )
@@ -11,6 +14,7 @@ import (
 type WebSocketOnMessage func(message []byte)
 
 type WebSocket struct {
+	id        string
 	url       string
 	key       string
 	onMessage WebSocketOnMessage
@@ -18,6 +22,7 @@ type WebSocket struct {
 	running bool
 
 	connection *websocket.Conn
+	mux        sync.RWMutex
 }
 
 func (ws *WebSocket) Init() {
@@ -25,17 +30,25 @@ func (ws *WebSocket) Init() {
 
 	header := http.Header{}
 	header.Add("x-device-key", ws.key)
-	connection, _, err := websocket.DefaultDialer.Dial(ws.url, header)
+
+	u, err := url.Parse(ws.url)
+	if err != nil {
+		log.Fatalf("websocket url parse error %s", err)
+	}
+	u.Path = fmt.Sprintf("/ws/device/%s/response", ws.id)
+
+	connection, _, err := websocket.DefaultDialer.Dial(u.String(), header)
 	if err != nil {
 		log.Printf("webscoket init error %s", err)
 		return
 	}
-	defer connection.Close()
 
 	ws.connection = connection
 
 	// recevice message
 	go func() {
+		defer connection.Close()
+
 		for ws.running {
 			_, msg, err := connection.ReadMessage()
 			if err != nil {
@@ -62,5 +75,7 @@ func (ws *WebSocket) Send(message any) {
 		log.Fatalf("json string error %s", err)
 	}
 
+	ws.mux.Lock()
 	ws.connection.WriteMessage(websocket.BinaryMessage, j)
+	ws.mux.Unlock()
 }

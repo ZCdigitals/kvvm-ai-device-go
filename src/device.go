@@ -37,11 +37,10 @@ func (d *Device) Init() {
 				d.mqtt.publish("request", m)
 			},
 		}
-	}
-
-	if d.WsUrl != "" {
+	} else if d.WsUrl != "" {
 		// create webscoket
 		d.ws = &WebSocket{
+			id:  d.Id,
 			url: d.WsUrl,
 			key: d.WsKey,
 			onMessage: func(msg []byte) {
@@ -235,6 +234,9 @@ func (d *Device) onWebRTCStart(msg DeviceMessage) {
 	// 	return
 	// }
 	dc := d.wrtc.CreateDataChannel("hid")
+	if dc != nil {
+		log.Println("hid created")
+	}
 	// if dc == nil {
 	// 	dc.OnMessage(func(dcmsg webrtc.DataChannelMessage) {
 	// 		d.hid.Send(dcmsg.Data)
@@ -256,11 +258,21 @@ func (d *Device) onWebSocketStart(msg DeviceMessage) {
 }
 
 func (d *Device) sendIceCandidate(candidate *webrtc.ICECandidateInit) {
-	d.mqtt.PublishResponse(
-		DeviceMessage{
+	if d.mqtt != nil {
+		d.mqtt.PublishResponse(
+			DeviceMessage{
+				Time:         time.Now().Unix(),
+				Type:         WebRTCIceCandidate,
+				IceCandidate: candidate,
+			},
+		)
+	} else if d.ws != nil {
+		d.ws.Send(DeviceMessage{
 			Time:         time.Now().Unix(),
 			Type:         WebRTCIceCandidate,
 			IceCandidate: candidate,
-		},
-	)
+		})
+	} else {
+		log.Printf("can not send ice candidate")
+	}
 }
