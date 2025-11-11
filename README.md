@@ -1,4 +1,6 @@
-# KVVM.AI Device Go
+# KVVM AI Device Go
+
+This KVVM AI Device project. This repository is implemented in pure Go.
 
 ## Build
 
