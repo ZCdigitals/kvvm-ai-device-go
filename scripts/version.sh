@@ -17,7 +17,14 @@ write_version() {
 }
 
 create_tag() {
-    git tag "$(cat $VERSION_PATH)"
+	git add .
+	git commit -m "$1"
+    git tag "$1"
+}
+
+push() {
+	git push
+	git push --tags
 }
 
 bump_major() {
@@ -61,5 +68,8 @@ else
 	exit 1
 fi
 
-write_version "$MAJOR.$MINOR.$PATCH"
-create_tag
+VERSION_STRING="$MAJOR.$MINOR.$PATCH"
+
+write_version $VERSION_STRING
+create_tag $VERSION_STRING
+push
