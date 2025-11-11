@@ -15,7 +15,7 @@ import (
 )
 
 type WebRTCOnIceCandidate func(candidate *webrtc.ICECandidateInit)
-type WebRTCOnDataChannelMessage func(msg []byte)
+type WebRTCOnDataChannel func(dataChannel *webrtc.DataChannel) bool
 
 type WebRTC struct {
 	pc *webrtc.PeerConnection
@@ -27,8 +27,8 @@ type WebRTC struct {
 	// ice candidate
 	onIceCandidate WebRTCOnIceCandidate
 
-	// data channels
-	dataChannels []*webrtc.DataChannel
+	// data channel
+	onDataChannel WebRTCOnDataChannel
 
 	// on close
 	onClose func()
@@ -45,7 +45,7 @@ func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer) {
 	// 创建PeerConnection
 	pc, err := webrtc.NewPeerConnection(config)
 	if err != nil {
-		log.Fatalf("create peer connection error %s", err)
+		log.Fatalf("webrtc create peer connection error %s", err)
 	}
 
 	wrtc.pc = pc
@@ -66,16 +66,29 @@ func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer) {
 
 	// handle ice candidate
 	pc.OnICECandidate(func(cddt *webrtc.ICECandidate) {
-		log.Println("got local ice candidate")
+		// there cloud be null candidate, this is legal, just ignore it
+		if cddt == nil {
+			return
+		}
+		log.Println("webrtc got local ice candidate")
+
 		if wrtc.onIceCandidate == nil {
 			return
 		}
-		if cddt != nil {
-			cj := cddt.ToJSON()
-			wrtc.onIceCandidate(&cj)
-		} else {
-			// there cloud be null candidate, this is legal, just ignore it
-			// wrtc.onIceCandidate(nil)
+
+		cj := cddt.ToJSON()
+		wrtc.onIceCandidate(&cj)
+	})
+
+	// handle data channel
+	pc.OnDataChannel(func(dc *webrtc.DataChannel) {
+		if wrtc.onDataChannel == nil {
+			return
+		}
+
+		using := wrtc.onDataChannel(dc)
+		if !using {
+			dc.Close()
 		}
 	})
 }
@@ -83,10 +96,6 @@ func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer) {
 func (wrtc *WebRTC) Close() {
 	if wrtc.onClose != nil {
 		wrtc.onClose()
-	}
-
-	for _, dc := range wrtc.dataChannels {
-		dc.Close()
 	}
 
 	if wrtc.vt != nil {
@@ -152,8 +161,12 @@ func (wrtc *WebRTC) UseTrack(capability webrtc.RTPCodecCapability) {
 }
 
 func (wrtc *WebRTC) WriteVideoTrack(b []byte, timestamp uint64) error {
+	if wrtc.vt == nil {
+		return nil
+	}
+
 	t := time.UnixMicro(int64(timestamp))
-	// log.Println("write video track", timestamp, int(timestamp), t)
+	// log.Println("write video track", timestamp)
 	err := wrtc.vt.WriteSample(media.Sample{Data: b, Duration: t.Sub(wrtc.lastFrameTime)})
 	wrtc.lastFrameTime = t
 
@@ -161,13 +174,11 @@ func (wrtc *WebRTC) WriteVideoTrack(b []byte, timestamp uint64) error {
 }
 
 func (wrtc *WebRTC) CreateDataChannel(label string) *webrtc.DataChannel {
-	dc, err := wrtc.pc.CreateDataChannel(label, &webrtc.DataChannelInit{})
+	dc, err := wrtc.pc.CreateDataChannel(label, nil)
 	if err != nil {
 		log.Printf("wrtc data channel create error %s", err)
 		return nil
 	}
-
-	wrtc.dataChannels = append(wrtc.dataChannels, dc)
 
 	return dc
 }

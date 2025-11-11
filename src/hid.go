@@ -180,7 +180,7 @@ func (h *HidController) Close() {
 
 // WriteReport 写入报告
 func (h *HidController) WriteReport(reportID byte, data []byte) {
-	log.Printf("write %d %v", reportID, data)
+	// log.Printf("write %d %v", reportID, data)
 
 	// 在报告前添加报告ID
 	report := append([]byte{reportID}, data...)
@@ -277,6 +277,8 @@ func (h *HidController) Send(b []byte) error {
 	if err := json.Unmarshal(b, &hidData); err != nil {
 		return fmt.Errorf("failed to parse JSON: %v", err)
 	}
+
+	// log.Printf("hid data %s", hidData.Category)
 
 	switch data := hidData.Data.(type) {
 	case HidMouseData:

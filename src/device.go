@@ -34,7 +34,7 @@ func (d *Device) Init() {
 			url: d.MqttUrl,
 			onRequest: func(msg []byte) {
 				m := d.onMessage(msg)
-				d.mqtt.publish("request", m)
+				d.mqtt.publish("response", m)
 			},
 		}
 	} else if d.WsUrl != "" {
@@ -61,6 +61,7 @@ func (d *Device) Init() {
 	// create webrtc
 	d.wrtc = WebRTC{
 		onIceCandidate: d.sendIceCandidate,
+		onDataChannel:  d.useDataChannel,
 		onClose: func() {
 			if d.mqtt != nil {
 				d.ws.Close()
@@ -74,8 +75,7 @@ func (d *Device) Init() {
 	// create resources
 	d.ms = NewMediaSocket("/var/run/capture.sock")
 	// d.ms = *NewMediaSocket("/tmp/capture.sock")
-	d.hid = HidController{Path: "/dev/hidg0"}
-
+	d.hid = HidController{Path: "/dev/hidg1"}
 }
 
 func (d *Device) Close() {
@@ -156,6 +156,7 @@ func (d *Device) onMessage(msg []byte) DeviceMessage {
 		}
 	case WebRTCStart:
 		d.onWebRTCStart(m)
+		log.Println("webrtc start")
 		return DeviceMessage{
 			Time: time.Now().Unix(),
 			Type: WebRTCStart,
@@ -215,33 +216,17 @@ func (d *Device) onWebRTCStart(msg DeviceMessage) {
 
 	// use video
 	d.wrtc.UseTrack(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264})
-	// log.Println("webrtc use track")
+	log.Println("webrtc use track")
 
-	// d.ms.onData = func(header *MediaFrameHeader, frame []byte) {
-	// 	d.wrtc.WriteVideoTrack(frame, header.timestamp)
-	// }
-
-	// err := d.ms.Init()
-	// if err != nil {
-	// 	log.Printf("media init error %s", err)
-	// 	return
-	// }
-
-	// // use hid
-	// err = d.hid.Open()
-	// if err != nil {
-	// 	log.Printf("hid open error %s", err)
-	// 	return
-	// }
-	dc := d.wrtc.CreateDataChannel("hid")
-	if dc != nil {
-		log.Println("hid created")
+	d.ms.onData = func(header *MediaFrameHeader, frame []byte) {
+		d.wrtc.WriteVideoTrack(frame, header.timestamp)
 	}
-	// if dc == nil {
-	// 	dc.OnMessage(func(dcmsg webrtc.DataChannelMessage) {
-	// 		d.hid.Send(dcmsg.Data)
-	// 	})
-	// }
+
+	err := d.ms.Init()
+	if err != nil {
+		log.Printf("media init error %s", err)
+		return
+	}
 }
 
 func (d *Device) onWebSocketStart(msg DeviceMessage) {
@@ -254,6 +239,31 @@ func (d *Device) onWebSocketStart(msg DeviceMessage) {
 			m := d.onMessage(msg)
 			d.ws.Send(m)
 		},
+	}
+}
+
+func (d *Device) useDataChannel(dc *webrtc.DataChannel) bool {
+	switch dc.Label() {
+	case "hid":
+		{
+			err := d.hid.Open()
+			if err != nil {
+				return false
+			}
+
+			dc.OnOpen(func() {
+				log.Printf("hid open %d\n", dc.ID())
+			})
+
+			dc.OnMessage(func(dcmsg webrtc.DataChannelMessage) {
+				d.hid.Send(dcmsg.Data)
+			})
+
+			return true
+		}
+	default:
+		log.Printf("unknown data channel %d %s", *dc.ID(), dc.Label())
+		return false
 	}
 }
 

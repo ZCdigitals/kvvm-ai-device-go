@@ -76,6 +76,6 @@ func (ws *WebSocket) Send(message any) {
 	}
 
 	ws.mux.Lock()
+	defer ws.mux.Unlock()
 	ws.connection.WriteMessage(websocket.BinaryMessage, j)
-	ws.mux.Unlock()
 }

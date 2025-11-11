@@ -40,13 +40,16 @@ func ParseMediaFrameHeader(b []byte) MediaFrameHeader {
 type MediaSocketOnData func(header *MediaFrameHeader, frame []byte)
 
 type MediaSocket struct {
-	path       string
-	listener   net.Listener
-	connection net.Conn
-	onData     MediaSocketOnData
+	path string
 
-	cmd     *exec.Cmd
 	running bool
+
+	listener   *net.Listener
+	connection *net.Conn
+
+	cmd *exec.Cmd
+
+	onData MediaSocketOnData
 }
 
 func NewMediaSocket(path string) MediaSocket {
@@ -57,16 +60,19 @@ func NewMediaSocket(path string) MediaSocket {
 }
 
 func (m *MediaSocket) Init() error {
+	m.running = true
+
 	var err error
 
 	// delete exists
 	os.Remove(m.path)
 
 	// start listen
-	m.listener, err = net.Listen("unix", m.path)
+	l, err := net.Listen("unix", m.path)
 	if err != nil {
 		return err
 	}
+	m.listener = &l
 
 	// chmod
 	// err = os.Chmod(m.path, 0666)
@@ -83,7 +89,8 @@ func (m *MediaSocket) Init() error {
 
 	err = m.cmd.Start()
 	if err != nil {
-		m.listener.Close()
+		(*m.listener).Close()
+		m.listener = nil
 		return fmt.Errorf("media socket cmd start error %s", err)
 	}
 
@@ -93,13 +100,13 @@ func (m *MediaSocket) Init() error {
 }
 
 func (m *MediaSocket) accept() {
-	c, err := m.listener.Accept()
+	c, err := (*m.listener).Accept()
 	if err != nil {
 		log.Printf("media socket accept error %s\n", err)
 		return
 	}
-	m.connection = c
-	defer m.Close()
+	m.connection = &c
+	defer m.close()
 
 	m.handle()
 }
@@ -152,7 +159,7 @@ func (m *MediaSocket) read(buffer []byte) error {
 
 	total := 0
 	for total < len(buffer) {
-		n, err := m.connection.Read(buffer[total:])
+		n, err := (*m.connection).Read(buffer[total:])
 		if err == io.EOF {
 			break
 		} else if err != nil {
@@ -170,24 +177,29 @@ func (m *MediaSocket) read(buffer []byte) error {
 
 func (m *MediaSocket) Close() {
 	m.running = false
+}
 
+func (m *MediaSocket) close() {
 	if m.cmd != nil {
 		err := m.cmd.Process.Signal(os.Interrupt)
 		if err != nil {
 			log.Printf("media cmd stop error %s\n", err)
 		}
+		m.cmd = nil
 	}
 	if m.connection != nil {
-		err := m.connection.Close()
+		err := (*m.connection).Close()
 		if err != nil {
 			log.Printf("media connection close error %s\n", err)
 		}
+		m.connection = nil
 	}
 	if m.listener != nil {
-		err := m.listener.Close()
+		err := (*m.listener).Close()
 		if err != nil {
 			log.Printf("media listener close error %s\n", err)
 		}
+		m.listener = nil
 	}
 	os.Remove(m.path)
 }
