@@ -162,7 +162,7 @@ func (d *Device) webRTCStart(msg DeviceMessage) {
 		d.wrtc.WriteVideoTrack(frame, header.timestamp)
 	}
 
-	err := d.ms.Init()
+	err := d.ms.Open()
 	if err != nil {
 		log.Printf("media init error %s", err)
 		return
