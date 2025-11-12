@@ -58,7 +58,7 @@ sleep 2
 # 8. 验证配置
 echo "验证配置:"
 if [ -c /dev/hidg1 ]; then
-    echo "✓ HID 设备 0 已创建: /dev/hidg1"
+    echo "✓ HID 设备 1 已创建: /dev/hidg1"
     chmod 666 /dev/hidg1
     echo "配置成功完成!"
 else
