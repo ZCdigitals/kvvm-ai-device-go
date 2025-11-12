@@ -21,13 +21,14 @@ type Mqtt struct {
 	onRequest MqttOnRequest
 }
 
-func (c *Mqtt) Init() {
+func (c *Mqtt) openClient() error {
 	// options
 	o := MQTT.NewClientOptions()
 
 	uu, err := url.Parse(c.url)
 	if err != nil {
-		log.Fatalf("mqtt url parse error %v", err)
+		log.Printf("mqtt url parse error %v\n", err)
+		return err
 	}
 
 	up, upe := uu.User.Password()
@@ -48,10 +49,10 @@ func (c *Mqtt) Init() {
 
 	// set callback
 	o.OnConnect = func(client MQTT.Client) {
-		log.Println("mqtt connected ", c.id)
+		log.Println("mqtt connected")
 	}
 	o.OnConnectionLost = func(client MQTT.Client, err error) {
-		log.Println("mqtt connections lost: ", err)
+		log.Printf("mqtt connections lost %v\n", err)
 	}
 
 	// create client
@@ -60,78 +61,109 @@ func (c *Mqtt) Init() {
 	// connect
 	token := c.client.Connect()
 	token.Wait()
-	if token.Error() != nil {
-		log.Fatalf("connect error %s", token.Error())
+	err = token.Error()
+	if err != nil {
+		log.Printf("mqtt connect error %v\n", err)
+		return err
 	}
 
-	// subscribe request
-	c.subscribe("request", func(cc MQTT.Client, msg MQTT.Message) {
-		if c.onRequest != nil {
-			c.onRequest(msg.Payload())
-		}
-	})
-
-	// send a heartbeat
-	c.PublishHeartbeat()
-}
-
-func (c *Mqtt) Close() {
-	// send offline
-	c.PublishOffline()
-
-	// disconnect
-	c.client.Disconnect(250)
+	return nil
 }
 
 func (c *Mqtt) useTopic(prop string) string {
 	return fmt.Sprintf("device/%s/%s", c.id, prop)
 }
 
-func (c *Mqtt) publish(prop string, message any) {
+func (c *Mqtt) publish(prop string, message any) error {
 	j, err := json.Marshal(message)
 	if err != nil {
-		log.Printf("json string error %v", err)
+		log.Printf("mqtt json marshal error %v", err)
+		return err
 	}
 
 	token := c.client.Publish(c.useTopic(prop), 0, false, j)
 	token.Wait()
-	if token.Error() != nil {
-		log.Printf("publish error %s", token.Error())
+	err = token.Error()
+	if err != nil {
+		log.Printf("mqtt publish error %v", err)
+		return err
 	}
+
+	return nil
 }
 
-func (c *Mqtt) subscribe(prop string, cb MQTT.MessageHandler) {
+func (c *Mqtt) subscribe(prop string, cb MQTT.MessageHandler) error {
 	token := c.client.Subscribe(c.useTopic(prop), 1, cb)
 	token.Wait()
-	if token.Error() != nil {
-		log.Printf("subscribe error %s", token.Error())
+	err := token.Error()
+	if err != nil {
+		log.Printf("mqtt subscribe error %v", err)
+		return err
 	}
+
+	return nil
 }
 
-type MqttStatus struct {
+type mqttStatus struct {
 	Time   int64 `json:"time"`
 	Status bool  `json:"status"`
 }
 
-func (c *Mqtt) PublishOnline() {
-	s := MqttStatus{Status: true, Time: time.Now().Unix()}
-	c.publish("status", s)
+// there is no neet to publish online, use `publishHeartbeat`
+// func (c *Mqtt) publishOnline() {
+// 	s := mqttStatus{Status: true, Time: time.Now().Unix()}
+// 	c.publish("status", s)
+// }
+
+func (c *Mqtt) publishOffline() error {
+	s := mqttStatus{Status: false, Time: time.Now().Unix()}
+	return c.publish("status", s)
 }
 
-func (c *Mqtt) PublishOffline() {
-	s := MqttStatus{Status: false, Time: time.Now().Unix()}
-	c.publish("status", s)
-}
-
-type MqttHeartbeat struct {
+type mqttHeartbeat struct {
 	Time int64 `json:"time"`
 }
 
-func (c *Mqtt) PublishHeartbeat() {
-	s := MqttHeartbeat{Time: time.Now().Unix()}
-	c.publish("heartbeat", s)
+func (c *Mqtt) publishHeartbeat() error {
+	s := mqttHeartbeat{Time: time.Now().Unix()}
+	return c.publish("heartbeat", s)
 }
 
-func (c *Mqtt) PublishResponse(data any) {
-	c.publish("response", data)
+func (c *Mqtt) subscribeRequest() error {
+	return c.subscribe("request", func(cc MQTT.Client, msg MQTT.Message) {
+		if c.onRequest != nil {
+			c.onRequest(msg.Payload())
+		}
+	})
+}
+
+func (c *Mqtt) publishResponse(data any) error {
+	return c.publish("response", data)
+}
+
+func (c *Mqtt) Open() error {
+	err := c.openClient()
+	if err != nil {
+		return err
+	}
+
+	err = c.subscribeRequest()
+	if err != nil {
+		return err
+	}
+	err = c.publishHeartbeat()
+
+	return err
+}
+
+func (c *Mqtt) Close() {
+	// send offline
+	c.publishOffline()
+
+	// disconnect
+	c.client.Disconnect(250)
+}
+
+func (c *Mqtt) Send(data any) error {
+	return c.publishResponse(data)
 }

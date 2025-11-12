@@ -2,7 +2,6 @@ package src
 
 import (
 	"log"
-	"time"
 
 	"github.com/pion/webrtc/v4"
 )
@@ -33,9 +32,10 @@ func (d *Device) Init() {
 			url: d.MqttUrl,
 			onRequest: func(msg []byte) {
 				m := d.handleMessage(msg)
-				d.mqtt.publish("response", m)
+				d.mqtt.Send(m)
 			},
 		}
+		d.mqtt.Open()
 	} else if d.WsUrl != "" {
 		// create webscoket
 		d.ws = &WebSocket{
@@ -47,11 +47,6 @@ func (d *Device) Init() {
 				d.ws.Send(m)
 			},
 		}
-	}
-
-	if d.mqtt != nil {
-		d.mqtt.Init()
-	} else if d.ws != nil {
 		d.ws.Open()
 	} else {
 		log.Fatalln("Must set mqtt or ws")
@@ -80,9 +75,11 @@ func (d *Device) Init() {
 func (d *Device) Close() {
 	if d.mqtt != nil {
 		d.mqtt.Close()
+		d.mqtt = nil
 	}
 	if d.ws != nil {
 		d.ws.Close()
+		d.ws = nil
 	}
 	d.ms.Close()
 	d.hid.Close()
@@ -112,7 +109,7 @@ func (d *Device) handleMessage(msg []byte) DeviceMessage {
 
 	switch m.Type {
 	case WebSocketStart:
-		d.webSocketStart(m)
+		d.webSocketStart()
 		return NewDeviceMessage(WebSocketStart)
 	case WebSocketStop:
 		d.webSocketStop()
@@ -155,34 +152,37 @@ func (d *Device) webRTCStart(msg DeviceMessage) {
 
 	// use video
 	d.wrtc.UseTrack(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264})
-	log.Println("webrtc use track")
 
 	d.ms.onData = func(header *MediaFrameHeader, frame []byte) {
 		d.wrtc.WriteVideoTrack(frame, header.timestamp)
 	}
 
-	err := d.ms.Open()
-	if err != nil {
-		log.Printf("media init error %v", err)
-		return
-	}
+	d.ms.Open()
 }
 
 func (d *Device) webRTCStop() {
 	d.wrtc.Close()
 }
 
-func (d *Device) webSocketStart(msg DeviceMessage) {
-	if d.ws == nil {
-		return
-	}
-	d.ws = &WebSocket{
-		url: msg.WebSocketUrl,
+func (d *Device) webSocketStart() error {
+	ws := &WebSocket{
+		id:  d.Id,
+		url: d.WsUrl,
+		key: d.WsKey,
 		onMessage: func(msg []byte) {
 			m := d.handleMessage(msg)
 			d.ws.Send(m)
 		},
 	}
+
+	err := ws.Open()
+	if err != nil {
+		return err
+	}
+
+	d.ws = ws
+
+	return nil
 }
 
 func (d *Device) webSocketStop() {
@@ -220,20 +220,12 @@ func (d *Device) useDataChannel(dc *webrtc.DataChannel) bool {
 }
 
 func (d *Device) sendIceCandidate(candidate *webrtc.ICECandidateInit) {
-	if d.mqtt != nil {
-		d.mqtt.PublishResponse(
-			DeviceMessage{
-				Time:         time.Now().Unix(),
-				Type:         WebRTCIceCandidate,
-				IceCandidate: candidate,
-			},
-		)
-	} else if d.ws != nil {
-		d.ws.Send(DeviceMessage{
-			Time:         time.Now().Unix(),
-			Type:         WebRTCIceCandidate,
-			IceCandidate: candidate,
-		})
+	m := NewDeviceMessage(WebRTCIceCandidate)
+	m.IceCandidate = candidate
+	if d.ws != nil {
+		d.ws.Send(m)
+	} else if d.mqtt != nil {
+		d.mqtt.Send(m)
 	} else {
 		log.Printf("can not send ice candidate")
 	}
