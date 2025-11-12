@@ -152,6 +152,7 @@ func (h *HidController) Open() error {
 	}
 
 	h.fd = fd
+	log.Println("hid controller open")
 
 	return err
 }
@@ -166,6 +167,7 @@ func (h *HidController) Close() error {
 		log.Printf("hid controller close error %v", err)
 	}
 	h.fd = nil
+	log.Println("hid controller close")
 
 	return err
 }

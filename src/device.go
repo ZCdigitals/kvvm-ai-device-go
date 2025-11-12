@@ -204,7 +204,7 @@ func (d *Device) useDataChannel(dc *webrtc.DataChannel) bool {
 			}
 
 			dc.OnOpen(func() {
-				log.Printf("hid open %d\n", dc.ID())
+				log.Printf("data channel hid open %d\n", *dc.ID())
 			})
 
 			dc.OnMessage(func(dcmsg webrtc.DataChannelMessage) {
@@ -214,7 +214,8 @@ func (d *Device) useDataChannel(dc *webrtc.DataChannel) bool {
 			return true
 		}
 	default:
-		log.Printf("unknown data channel %d %s", *dc.ID(), dc.Label())
+		log.Printf("data channel unknown %d %s", *dc.ID(), dc.Label())
+		dc.Close()
 		return false
 	}
 }
