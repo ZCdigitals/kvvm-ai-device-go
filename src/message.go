@@ -51,6 +51,7 @@ func UnmarshalDeviceMessage(data []byte) (DeviceMessage, error) {
 	err := json.Unmarshal(data, &m)
 
 	if err != nil {
+		log.Printf("message json unmarshal error %v", err)
 		m.Type = Error
 	}
 

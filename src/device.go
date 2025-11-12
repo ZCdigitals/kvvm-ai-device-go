@@ -107,7 +107,6 @@ func (d *Device) handleMessage(msg []byte) DeviceMessage {
 	m, err := UnmarshalDeviceMessage(msg)
 
 	if err != nil {
-		log.Printf("json parse message error %v", err)
 		return m
 	}
 
