@@ -4,15 +4,31 @@ This KVVM AI Device project. This repository is implemented in pure Go.
 
 ## Build
 
+```bash
+./build.sh
+```
+
+currently, `build.sh` is for rv1106
+
 if you need run on other platform, edit `build.sh`
 
 ## Deploy
 
-copy the binary file `output/device` and `video` to target `/root/`
+copy the binary file `output/device` and `video` to `/root/` on target hardware
 
 we use absolute path currently
 
-or you may edit the `video` path in `media.go`
+or you may edit the `VIDEO_CMD` in `src/media.go`
+
+## Using
+
+Args
+
+- `--device-id`		device id, get it on front, required.
+- `--mqtt-broker`	mqtt broker url, eg. `mqtt://192.168.1.100:1883`
+- `--websocket`		websocket url, eg. `ws://192.168.1.100:3000`, required
+- `--websocket-key`	websocket key, get it on front, required
+- `--version`		print version information
 
 ## Develop
 
