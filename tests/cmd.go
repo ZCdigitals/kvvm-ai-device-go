@@ -16,7 +16,7 @@ func main() {
 	output, err := cmd.CombinedOutput()
 
 	if err != nil {
-		log.Printf("cmd error %s", err)
+		log.Printf("cmd error %v", err)
 		return
 	}
 

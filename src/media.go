@@ -300,7 +300,7 @@ func (rtp *MediaRtp) Init() error {
 		err := rtp.listener.Close()
 
 		if err != nil {
-			log.Printf("close rtp listener error %s", err)
+			log.Printf("close rtp listener error %v", err)
 		}
 	}
 
@@ -308,7 +308,7 @@ func (rtp *MediaRtp) Init() error {
 		err := rtp.cmd.Cancel()
 
 		if err != nil {
-			log.Printf("cancel rtp cmd error %s", err)
+			log.Printf("cancel rtp cmd error %v", err)
 		}
 	}
 
@@ -353,14 +353,14 @@ func (rtp *MediaRtp) Close() {
 		err := rtp.cmd.Cancel()
 
 		if err != nil {
-			log.Printf("rtp cmd cancel error %s", err)
+			log.Printf("rtp cmd cancel error %v", err)
 		}
 	}
 
 	if rtp.listener != nil {
 		err := rtp.listener.Close()
 		if err != nil {
-			log.Printf("rtp listener close error %s", err)
+			log.Printf("rtp listener close error %v", err)
 		}
 	}
 }

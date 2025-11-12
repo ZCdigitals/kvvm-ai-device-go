@@ -45,7 +45,7 @@ func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer) {
 	// 创建PeerConnection
 	pc, err := webrtc.NewPeerConnection(config)
 	if err != nil {
-		log.Fatalf("webrtc create peer connection error %s", err)
+		log.Fatalf("webrtc create peer connection error %v", err)
 	}
 
 	wrtc.pc = pc
@@ -105,7 +105,7 @@ func (wrtc *WebRTC) Close() {
 	if wrtc.pc != nil {
 		err := wrtc.pc.Close()
 		if err != nil {
-			log.Printf("wrtc peer connection close error %s", err)
+			log.Printf("wrtc peer connection close error %v", err)
 		}
 	}
 }
@@ -113,18 +113,18 @@ func (wrtc *WebRTC) Close() {
 func (wrtc *WebRTC) UseOffer(offer *webrtc.SessionDescription) *webrtc.SessionDescription {
 	err := wrtc.pc.SetRemoteDescription(*offer)
 	if err != nil {
-		log.Fatalf("use remote offer error %s", err)
+		log.Fatalf("use remote offer error %v", err)
 	}
 	log.Println("use remote offer")
 
 	answer, err := wrtc.pc.CreateAnswer(nil)
 	if err != nil {
-		log.Fatalf("create answer error %s", err)
+		log.Fatalf("create answer error %v", err)
 	}
 
 	err = wrtc.pc.SetLocalDescription(answer)
 	if err != nil {
-		log.Fatalf("use local answer error %s", err)
+		log.Fatalf("use local answer error %v", err)
 	}
 
 	log.Println("create local answer")
@@ -146,13 +146,13 @@ func (wrtc *WebRTC) UseTrack(capability webrtc.RTPCodecCapability) {
 	)
 
 	if err != nil {
-		log.Fatalf("create video track error %s", err)
+		log.Fatalf("create video track error %v", err)
 	}
 	log.Println("create video track")
 
 	_, err = wrtc.pc.AddTrack(vt)
 	if err != nil {
-		log.Fatalf("add track error %s", err)
+		log.Fatalf("add track error %v", err)
 	}
 	log.Println("add track")
 
@@ -176,7 +176,7 @@ func (wrtc *WebRTC) WriteVideoTrack(b []byte, timestamp uint64) error {
 func (wrtc *WebRTC) CreateDataChannel(label string) *webrtc.DataChannel {
 	dc, err := wrtc.pc.CreateDataChannel(label, nil)
 	if err != nil {
-		log.Printf("wrtc data channel create error %s", err)
+		log.Printf("wrtc data channel create error %v", err)
 		return nil
 	}
 

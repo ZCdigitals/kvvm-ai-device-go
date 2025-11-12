@@ -27,7 +27,7 @@ func (c *Mqtt) Init() {
 
 	uu, err := url.Parse(c.url)
 	if err != nil {
-		log.Fatalf("mqtt url parse error %s", err)
+		log.Fatalf("mqtt url parse error %v", err)
 	}
 
 	up, upe := uu.User.Password()
@@ -90,7 +90,7 @@ func (c *Mqtt) useTopic(prop string) string {
 func (c *Mqtt) publish(prop string, message any) {
 	j, err := json.Marshal(message)
 	if err != nil {
-		log.Printf("json string error %s", err)
+		log.Printf("json string error %v", err)
 	}
 
 	token := c.client.Publish(c.useTopic(prop), 0, false, j)

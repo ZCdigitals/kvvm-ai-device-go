@@ -33,13 +33,13 @@ func (ws *WebSocket) Init() {
 
 	u, err := url.Parse(ws.url)
 	if err != nil {
-		log.Fatalf("websocket url parse error %s", err)
+		log.Fatalf("websocket url parse error %v", err)
 	}
 	u.Path = fmt.Sprintf("/ws/device/%s/response", ws.id)
 
 	connection, _, err := websocket.DefaultDialer.Dial(u.String(), header)
 	if err != nil {
-		log.Printf("webscoket init error %s", err)
+		log.Printf("webscoket init error %v", err)
 		return
 	}
 
@@ -52,7 +52,7 @@ func (ws *WebSocket) Init() {
 		for ws.running {
 			_, msg, err := connection.ReadMessage()
 			if err != nil {
-				log.Printf("websocket read message error %s", err)
+				log.Printf("websocket read message error %v", err)
 				return
 			} else if ws.onMessage != nil {
 				ws.onMessage(msg)
@@ -72,7 +72,7 @@ func (ws *WebSocket) Send(message any) {
 
 	j, err := json.Marshal(message)
 	if err != nil {
-		log.Fatalf("json string error %s", err)
+		log.Fatalf("json string error %v", err)
 	}
 
 	ws.mux.Lock()
