@@ -1,7 +1,6 @@
 package src
 
 import (
-	"encoding/json"
 	"log"
 	"time"
 
@@ -33,7 +32,7 @@ func (d *Device) Init() {
 			id:  d.Id,
 			url: d.MqttUrl,
 			onRequest: func(msg []byte) {
-				m := d.onMessage(msg)
+				m := d.handleMessage(msg)
 				d.mqtt.publish("response", m)
 			},
 		}
@@ -44,7 +43,7 @@ func (d *Device) Init() {
 			url: d.WsUrl,
 			key: d.WsKey,
 			onMessage: func(msg []byte) {
-				m := d.onMessage(msg)
+				m := d.handleMessage(msg)
 				d.ws.Send(m)
 			},
 		}
@@ -90,18 +89,6 @@ func (d *Device) Close() {
 	d.wrtc.Close()
 }
 
-type DeviceMessageType string
-
-const (
-	WebSocketStart     DeviceMessageType = "websocket-start"
-	WebRTCStart        DeviceMessageType = "webrtc-start"
-	WebRTCStop         DeviceMessageType = "webrtc-stop"
-	WebRTCIceCandidate DeviceMessageType = "webrtc-ice-candidate"
-	WebRTCOffer        DeviceMessageType = "webrtc-offer"
-	WebRTCAnswer       DeviceMessageType = "webrtc-answer"
-	Error              DeviceMessageType = "error"
-)
-
 type DeviceMessageIceServer struct {
 	Credential string   `json:"credential"`
 	Urls       []string `json:"urls"`
@@ -116,95 +103,48 @@ func (iceServer *DeviceMessageIceServer) ToWebrtcIceServer() webrtc.ICEServer {
 	}
 }
 
-type DeviceMessage struct {
-	Time int64             `json:"time,omitempty"`
-	Type DeviceMessageType `json:"type,omitempty"`
+func (d *Device) handleMessage(msg []byte) DeviceMessage {
+	m, err := UnmarshalDeviceMessage(msg)
 
-	// websocket url
-	WebSocketUrl string `json:"websocketUrl,omitempty"`
-
-	// webrtc start
-	IceServers []DeviceMessageIceServer `json:"iceServers,omitempty"`
-
-	// webrtc ice candidate
-	IceCandidate  *webrtc.ICECandidateInit  `json:"iceCandidate,omitempty"`
-	IceCandidates []webrtc.ICECandidateInit `json:"iceCandidates,omitempty"`
-
-	// webrtc offer
-	Offer *webrtc.SessionDescription `json:"offer,omitempty"`
-
-	// webrtc answer
-	Answer *webrtc.SessionDescription `json:"answer,omitempty"`
-}
-
-func (d *Device) onMessage(msg []byte) DeviceMessage {
-	var m DeviceMessage
-	err := json.Unmarshal(msg, &m)
 	if err != nil {
 		log.Printf("json parse message error %s", err)
-		return DeviceMessage{
-			Time: time.Now().Unix(),
-		}
+		return m
 	}
 
 	switch m.Type {
 	case WebSocketStart:
-		d.onWebSocketStart(m)
-		return DeviceMessage{
-			Time: time.Now().Unix(),
-			Type: WebSocketStart,
-		}
+		d.webSocketStart(m)
+		return NewDeviceMessage(WebSocketStart)
+	case WebSocketStop:
+		d.webSocketStop()
+		return NewDeviceMessage(WebSocketStop)
 	case WebRTCStart:
-		d.onWebRTCStart(m)
-		log.Println("webrtc start")
-		return DeviceMessage{
-			Time: time.Now().Unix(),
-			Type: WebRTCStart,
-		}
+		d.webRTCStart(m)
+		return NewDeviceMessage(WebRTCStart)
+	case WebRTCStop:
+		d.webRTCStop()
+		return NewDeviceMessage(WebRTCStop)
 	case WebRTCIceCandidate:
 		d.wrtc.UseIceCandidate(m.IceCandidate)
-		return DeviceMessage{
-			Time: time.Now().Unix(),
-			Type: WebRTCIceCandidate,
-		}
+		return NewDeviceMessage(WebRTCIceCandidate)
 	case WebRTCOffer:
 		{
-			answer := d.wrtc.UseOffer(m.Offer)
-			return DeviceMessage{
-				Time:   time.Now().Unix(),
-				Type:   WebRTCAnswer,
-				Answer: answer,
-			}
+			mm := NewDeviceMessage(WebRTCAnswer)
+			mm.Answer = d.wrtc.UseOffer(m.Offer)
+			return mm
 		}
 	case Error:
 	case "":
-		{
-			return DeviceMessage{
-				Time: time.Now().Unix(),
-			}
-		}
+		return NewDeviceMessage("")
 	default:
-		{
-			log.Println("unknown request", m.Type)
-			return DeviceMessage{
-				Time: time.Now().Unix(),
-			}
-		}
+		log.Println("unknown request", m.Type)
+		return NewDeviceMessage("")
 	}
 
-	return DeviceMessage{
-		Time: time.Now().Unix(),
-	}
+	return NewDeviceMessage("")
 }
 
-type DeviceHttpData struct {
-	Method string            `json:"method"`
-	Url    string            `json:"url"`
-	Header map[string]string `json:"header"`
-	Body   string            `json:"body,omitempty"`
-}
-
-func (d *Device) onWebRTCStart(msg DeviceMessage) {
+func (d *Device) webRTCStart(msg DeviceMessage) {
 	// use ice servers
 	iss := make([]webrtc.ICEServer, len(msg.IceServers))
 	for i, v := range msg.IceServers {
@@ -229,17 +169,29 @@ func (d *Device) onWebRTCStart(msg DeviceMessage) {
 	}
 }
 
-func (d *Device) onWebSocketStart(msg DeviceMessage) {
+func (d *Device) webRTCStop() {
+	d.wrtc.Close()
+}
+
+func (d *Device) webSocketStart(msg DeviceMessage) {
 	if d.ws == nil {
 		return
 	}
 	d.ws = &WebSocket{
 		url: msg.WebSocketUrl,
 		onMessage: func(msg []byte) {
-			m := d.onMessage(msg)
+			m := d.handleMessage(msg)
 			d.ws.Send(m)
 		},
 	}
+}
+
+func (d *Device) webSocketStop() {
+	if d.ws == nil {
+		return
+	}
+	d.ws.Close()
+	d.ws = nil
 }
 
 func (d *Device) useDataChannel(dc *webrtc.DataChannel) bool {
