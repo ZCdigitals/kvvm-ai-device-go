@@ -101,6 +101,40 @@ type HidData struct {
 	Data     any             `json:"data"`
 }
 
+func UnmarshalHidData(data []byte) (HidData, error) {
+	var h = HidData{}
+
+	// use raw
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return h, err
+	}
+
+	// use category
+	if err := json.Unmarshal(raw["category"], &h.Category); err != nil {
+		return h, fmt.Errorf("category must be string: %v", err)
+	}
+
+	switch h.Category {
+	case HidDataCategoryMouse:
+		var mouseData HidMouseData
+		if err := json.Unmarshal(raw["data"], &mouseData); err != nil {
+			return h, fmt.Errorf("invalid mouse data: %v", err)
+		}
+		h.Data = mouseData
+	case HidDataCategoryKeyboard:
+		var keyboardData HidKeyboardData
+		if err := json.Unmarshal(raw["data"], &keyboardData); err != nil {
+			return h, fmt.Errorf("invalid keyboard data: %v", err)
+		}
+		h.Data = keyboardData
+	default:
+		return h, fmt.Errorf("unknown category: %s", h.Category)
+	}
+
+	return h, nil
+}
+
 type HidController struct {
 	path string
 	fd   *os.File
@@ -136,7 +170,7 @@ func (h *HidController) Close() error {
 	return err
 }
 
-func (h *HidController) WriteReport(reportID byte, data []byte) {
+func (h *HidController) WriteReport(reportID byte, data []byte) error {
 	// log.Printf("write %d %v", reportID, data)
 
 	// add id
@@ -144,7 +178,10 @@ func (h *HidController) WriteReport(reportID byte, data []byte) {
 
 	if _, err := h.fd.Write(report); err != nil {
 		log.Printf("hid controller write error %v", err)
+		return err
 	}
+
+	return nil
 }
 
 func (h *HidController) WriteMouseReport(btn1, btn2, btn3 bool, x, y int) error {
@@ -163,14 +200,13 @@ func (h *HidController) WriteMouseReport(btn1, btn2, btn3 bool, x, y int) error 
 	binary.LittleEndian.PutUint16(data[1:3], uint16(x))
 	binary.LittleEndian.PutUint16(data[3:5], uint16(y))
 
-	h.WriteReport(HidMouseReportId, data)
-	return nil
+	return h.WriteReport(HidMouseReportId, data)
 }
 
 func (h *HidController) WriteKeyboardReport(
 	ctrl, shift, alt bool,
 	key1, key2, key3, key4, key5, key6 *string,
-) {
+) error {
 	keys := []*string{key1, key2, key3, key4, key5, key6}
 	keyCodes := make([]byte, 6)
 
@@ -194,7 +230,7 @@ func (h *HidController) WriteKeyboardReport(
 	data[0] = byte(modifiers)
 	copy(data[1:], keyCodes)
 
-	h.WriteReport(HidKeyboardReportId, data)
+	return h.WriteReport(HidKeyboardReportId, data)
 }
 
 func (h *HidController) SendMouse(data HidMouseData) error {
@@ -207,8 +243,8 @@ func (h *HidController) SendMouse(data HidMouseData) error {
 	)
 }
 
-func (h *HidController) SendKeyboard(data HidKeyboardData) {
-	h.WriteKeyboardReport(
+func (h *HidController) SendKeyboard(data HidKeyboardData) error {
+	return h.WriteKeyboardReport(
 		data.Ctrl,
 		data.Shift,
 		data.Alt,
@@ -222,19 +258,18 @@ func (h *HidController) SendKeyboard(data HidKeyboardData) {
 }
 
 func (h *HidController) Send(b []byte) error {
-	var hidData HidData
-	if err := json.Unmarshal(b, &hidData); err != nil {
-		return fmt.Errorf("failed to parse JSON: %v", err)
+	hd, err := UnmarshalHidData(b)
+	if err != nil {
+		return err
 	}
 
 	// log.Printf("hid data %s", hidData.Category)
 
-	switch data := hidData.Data.(type) {
+	switch data := hd.Data.(type) {
 	case HidMouseData:
 		return h.SendMouse(data)
 	case HidKeyboardData:
-		h.SendKeyboard(data)
-		return nil
+		return h.SendKeyboard(data)
 	default:
 		return fmt.Errorf("unknown data type: %T", data)
 	}
