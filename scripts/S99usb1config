@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# config usb otg
+#
+
+case "$1" in
+    start)
+        echo "Starting OTG configuration..."
+        /root/usb/setup_usb.sh
+        ;;
+    stop)
+        echo "Stopping OTG..."
+		# do nothing
+        ;;
+    restart|reload)
+		# do nothing
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+        ;;
+esac
+
+exit 0

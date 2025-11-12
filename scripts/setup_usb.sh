@@ -5,7 +5,7 @@ echo "=== 配置 USB HID  ==="
 # 定义路径变量
 GADGET_PATH="/sys/kernel/config/usb_gadget/rockchip"
 CONFIG_PATH="$GADGET_PATH/configs/b.1"
-DESCRIPTOR_PATH="usb.bin"
+DESCRIPTOR_PATH="/root/usb/usb.bin"
 
 # 1. 检查必要目录是否存在
 if [ ! -d "$GADGET_PATH" ]; then
