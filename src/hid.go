@@ -13,7 +13,6 @@ const (
 	HidMouseReportId    = 0x02
 )
 
-// HidMouseData 鼠标数据结构
 type HidMouseData struct {
 	X       int  `json:"x"`
 	Y       int  `json:"y"`
@@ -22,7 +21,6 @@ type HidMouseData struct {
 	Button3 bool `json:"button3"`
 }
 
-// NewHidMouseData 创建鼠标数据
 func NewHidMouseData(x, y int, buttons ...bool) *HidMouseData {
 	if x < 0 || x >= 32768 {
 		log.Println("x must be in [0, 32768)")
@@ -50,7 +48,6 @@ func NewHidMouseData(x, y int, buttons ...bool) *HidMouseData {
 	return data
 }
 
-// HidKeyboardData 键盘数据结构
 type HidKeyboardData struct {
 	Ctrl  bool    `json:"ctrl"`
 	Shift bool    `json:"shift"`
@@ -63,7 +60,6 @@ type HidKeyboardData struct {
 	Key6  *string `json:"key6,omitempty"`
 }
 
-// NewHidKeyboardData 创建键盘数据
 func NewHidKeyboardData(ctrl, shift, alt bool, keys ...string) *HidKeyboardData {
 	data := &HidKeyboardData{
 		Ctrl:  ctrl,
@@ -93,7 +89,6 @@ func NewHidKeyboardData(ctrl, shift, alt bool, keys ...string) *HidKeyboardData 
 	return data
 }
 
-// HidDataCategory 数据类别枚举
 type HidDataCategory string
 
 const (
@@ -101,63 +96,25 @@ const (
 	HidDataCategoryMouse    HidDataCategory = "mouse"
 )
 
-// HidData 统一数据接口
 type HidData struct {
 	Category HidDataCategory `json:"category"`
 	Data     any             `json:"data"`
 }
 
-// UnmarshalJSON 自定义JSON反序列化
-func (h *HidData) UnmarshalJSON(data []byte) error {
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-
-	// 解析category
-	if err := json.Unmarshal(raw["category"], &h.Category); err != nil {
-		return fmt.Errorf("category must be string: %v", err)
-	}
-
-	// 根据category解析data
-	switch h.Category {
-	case HidDataCategoryMouse:
-		var mouseData HidMouseData
-		if err := json.Unmarshal(raw["data"], &mouseData); err != nil {
-			return fmt.Errorf("invalid mouse data: %v", err)
-		}
-		h.Data = mouseData
-	case HidDataCategoryKeyboard:
-		var keyboardData HidKeyboardData
-		if err := json.Unmarshal(raw["data"], &keyboardData); err != nil {
-			return fmt.Errorf("invalid keyboard data: %v", err)
-		}
-		h.Data = keyboardData
-	default:
-		return fmt.Errorf("unknown category: %s", h.Category)
-	}
-
-	return nil
-}
-
-// HidController HID控制器
 type HidController struct {
-	Path string
+	path string
 	fd   *os.File
 }
 
-// Open
+func NewHidController(path string) HidController {
+	return HidController{path: path}
+}
+
 func (h *HidController) Open() error {
-	var err error
-
-	if h.fd != nil {
-		err = h.fd.Close()
-		log.Printf("close hid device error %s", err)
-	}
-
-	fd, err := os.OpenFile(h.Path, os.O_WRONLY, 0644)
+	fd, err := os.OpenFile(h.path, os.O_WRONLY, 0644)
 	if err != nil {
-		log.Printf("failed to open device %s", err)
+		log.Printf("hid controller open error %v", err)
+		return err
 	}
 
 	h.fd = fd
@@ -165,32 +122,31 @@ func (h *HidController) Open() error {
 	return err
 }
 
-// Close 关闭设备
-func (h *HidController) Close() {
+func (h *HidController) Close() error {
 	if h.fd == nil {
-		return
+		return nil
 	}
 
 	err := h.fd.Close()
 	if err != nil {
-		log.Printf("hid controller close error %s", err)
+		log.Printf("hid controller close error %v", err)
 	}
 	h.fd = nil
+
+	return err
 }
 
-// WriteReport 写入报告
 func (h *HidController) WriteReport(reportID byte, data []byte) {
 	// log.Printf("write %d %v", reportID, data)
 
-	// 在报告前添加报告ID
+	// add id
 	report := append([]byte{reportID}, data...)
 
 	if _, err := h.fd.Write(report); err != nil {
-		log.Printf("failed to write report: %v", err)
+		log.Printf("hid controller write error %v", err)
 	}
 }
 
-// WriteMouseReport 写入鼠标报告
 func (h *HidController) WriteMouseReport(btn1, btn2, btn3 bool, x, y int) error {
 	if x < 0 || x >= 32768 {
 		return fmt.Errorf("x must be [0-32768)")
@@ -198,14 +154,12 @@ func (h *HidController) WriteMouseReport(btn1, btn2, btn3 bool, x, y int) error 
 		return fmt.Errorf("y must be [0-32768)")
 	}
 
-	// 打包按钮状态
+	// buttons
 	buttons := BoolsToInt(btn1, btn2, btn3, false, false, false, false, false)
 
-	// 创建数据缓冲区
 	data := make([]byte, 5)
 	data[0] = byte(buttons)
 
-	// 写入坐标（小端序）
 	binary.LittleEndian.PutUint16(data[1:3], uint16(x))
 	binary.LittleEndian.PutUint16(data[3:5], uint16(y))
 
@@ -213,7 +167,6 @@ func (h *HidController) WriteMouseReport(btn1, btn2, btn3 bool, x, y int) error 
 	return nil
 }
 
-// WriteKeyboardReport 写入键盘报告
 func (h *HidController) WriteKeyboardReport(
 	ctrl, shift, alt bool,
 	key1, key2, key3, key4, key5, key6 *string,
@@ -225,7 +178,7 @@ func (h *HidController) WriteKeyboardReport(
 		keyCodes[i] = FindKeyCode(key)
 	}
 
-	// 打包修饰键状态
+	// control buttons
 	modifiers := BoolsToInt(
 		ctrl,  // left ctrl
 		shift, // left shift
@@ -237,7 +190,6 @@ func (h *HidController) WriteKeyboardReport(
 		false, // right gui
 	)
 
-	// 创建数据缓冲区
 	data := make([]byte, 7)
 	data[0] = byte(modifiers)
 	copy(data[1:], keyCodes)
@@ -245,7 +197,6 @@ func (h *HidController) WriteKeyboardReport(
 	h.WriteReport(HidKeyboardReportId, data)
 }
 
-// SendMouse 发送鼠标数据
 func (h *HidController) SendMouse(data HidMouseData) error {
 	return h.WriteMouseReport(
 		data.Button1,
@@ -256,7 +207,6 @@ func (h *HidController) SendMouse(data HidMouseData) error {
 	)
 }
 
-// SendKeyboard 发送键盘数据
 func (h *HidController) SendKeyboard(data HidKeyboardData) {
 	h.WriteKeyboardReport(
 		data.Ctrl,
@@ -271,7 +221,6 @@ func (h *HidController) SendKeyboard(data HidKeyboardData) {
 	)
 }
 
-// Send 发送JSON数据
 func (h *HidController) Send(b []byte) error {
 	var hidData HidData
 	if err := json.Unmarshal(b, &hidData); err != nil {
@@ -291,7 +240,6 @@ func (h *HidController) Send(b []byte) error {
 	}
 }
 
-// BoolsToInt 将布尔值数组转换为整数
 func BoolsToInt(bools ...bool) int {
 	result := 0
 	for i, b := range bools {
@@ -333,7 +281,7 @@ var HIDKeyboardUsageTable = map[string]byte{
 	"y": 0x1C, "Y": 0x1C,
 	"z": 0x1D, "Z": 0x1D,
 
-	// 数字键
+	// numbers
 	"1": 0x1E, "!": 0x1E,
 	"2": 0x1F, "@": 0x1F,
 	"3": 0x20, "#": 0x20,
@@ -403,7 +351,6 @@ var HIDKeyboardUsageTable = map[string]byte{
 	"ArrowUp":    0x52,
 }
 
-// FindKeyCode 查找键码
 func FindKeyCode(key *string) byte {
 	if key == nil || *key == "" {
 		return 0x00

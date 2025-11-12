@@ -74,7 +74,7 @@ func (d *Device) Init() {
 	// create resources
 	d.ms = NewMediaSocket("/var/run/capture.sock")
 	// d.ms = *NewMediaSocket("/tmp/capture.sock")
-	d.hid = HidController{Path: "/dev/hidg1"}
+	d.hid = NewHidController("/dev/hidg1")
 }
 
 func (d *Device) Close() {
