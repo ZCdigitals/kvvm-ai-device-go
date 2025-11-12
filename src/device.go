@@ -52,7 +52,7 @@ func (d *Device) Init() {
 	if d.mqtt != nil {
 		d.mqtt.Init()
 	} else if d.ws != nil {
-		d.ws.Init()
+		d.ws.Open()
 	} else {
 		log.Fatalln("Must set mqtt or ws")
 	}

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"sync/atomic"
 
 	"github.com/gorilla/websocket"
 )
@@ -19,63 +20,104 @@ type WebSocket struct {
 	key       string
 	onMessage WebSocketOnMessage
 
-	running bool
+	running uint32
 
 	connection *websocket.Conn
-	mux        sync.RWMutex
+
+	mux sync.RWMutex
 }
 
-func (ws *WebSocket) Init() {
-	ws.running = true
-
+func (ws *WebSocket) openConnection() error {
 	header := http.Header{}
 	header.Add("x-device-key", ws.key)
 
 	u, err := url.Parse(ws.url)
 	if err != nil {
-		log.Fatalf("websocket url parse error %v", err)
+		log.Fatalf("websocket url parse error %v\n", err)
 	}
 	u.Path = fmt.Sprintf("/ws/device/%s/response", ws.id)
 
 	connection, _, err := websocket.DefaultDialer.Dial(u.String(), header)
 	if err != nil {
-		log.Printf("webscoket init error %v", err)
-		return
+		log.Printf("webscoket open error %v\n", err)
+		return err
 	}
 
 	ws.connection = connection
+	log.Println("websocket open")
 
-	// recevice message
-	go func() {
-		defer connection.Close()
+	return nil
+}
 
-		for ws.running {
-			_, msg, err := connection.ReadMessage()
-			if err != nil {
-				log.Printf("websocket read message error %v", err)
-				return
-			} else if ws.onMessage != nil {
-				ws.onMessage(msg)
-			}
+func (ws *WebSocket) closeConnection() error {
+	if ws.connection == nil {
+		return nil
+	}
+
+	err := ws.connection.Close()
+	ws.connection = nil
+	log.Println("websocket close ")
+
+	return err
+}
+
+func (ws *WebSocket) handle() {
+	defer ws.closeConnection()
+
+	for ws.isRunning() {
+		_, msg, err := ws.connection.ReadMessage()
+		if err != nil {
+			log.Printf("websocket read message error %v\n", err)
+			continue
+		} else if ws.onMessage != nil {
+			ws.onMessage(msg)
 		}
-	}()
+	}
+}
+
+func (ws *WebSocket) isRunning() bool {
+	return atomic.LoadUint32(&ws.running) == 1
+}
+
+func (ws *WebSocket) setRunning(running bool) {
+	if running {
+		atomic.StoreUint32(&ws.running, 1)
+	} else {
+		atomic.StoreUint32(&ws.running, 0)
+	}
+}
+
+func (ws *WebSocket) Open() error {
+	ws.setRunning(true)
+
+	err := ws.openConnection()
+	if err != nil {
+		return err
+	}
+
+	go ws.handle()
+
+	return nil
 }
 
 func (ws *WebSocket) Close() {
-	ws.running = false
+	ws.setRunning(false)
 }
 
-func (ws *WebSocket) Send(message any) {
+func (ws *WebSocket) Send(message any) error {
 	if ws.connection == nil {
-		return
+		return nil
 	}
 
 	j, err := json.Marshal(message)
 	if err != nil {
-		log.Fatalf("json string error %v", err)
+		log.Printf("websocket json marshal error %v", err)
+		return err
 	}
 
 	ws.mux.Lock()
 	defer ws.mux.Unlock()
-	ws.connection.WriteMessage(websocket.BinaryMessage, j)
+	err = ws.connection.WriteMessage(websocket.BinaryMessage, j)
+
+	return err
 }
