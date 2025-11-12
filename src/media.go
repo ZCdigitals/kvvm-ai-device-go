@@ -39,9 +39,9 @@ func ParseMediaFrameHeader(b []byte) MediaFrameHeader {
 }
 
 const (
-	headerLength        = 32
-	frameBufferSize     = 1024 * 1024
-	maxFrambeBufferSize = 10 * 1024 * 1024
+	headerLength = 32
+	// frame is h264 encoded, 1MB should be enough
+	maxFrameSize = 1 * 1024 * 1024
 )
 
 type MediaSocketOnData func(header *MediaFrameHeader, frame []byte)
@@ -177,9 +177,7 @@ func (m *MediaSocket) close() {
 func (m *MediaSocket) handle() {
 	defer m.close()
 
-	// data is h264 encoded, 1MB should be enough
 	headerBuffer := make([]byte, headerLength)
-	frameBuffer := make([]byte, frameBufferSize)
 
 	for m.isRunning() {
 		err := m.read(headerBuffer)
@@ -195,22 +193,20 @@ func (m *MediaSocket) handle() {
 		if header.size == 0 {
 			log.Printf("media socket frame %d size is 0\n", header.id)
 			continue
-		} else if header.size > maxFrambeBufferSize {
+		} else if header.size > maxFrameSize {
 			log.Printf("media socket frame %d size is too larger %d\n", header.id, header.size)
 			continue
-		} else if header.size > uint32(len(frameBuffer)) {
-			ss := min(header.size*2, maxFrambeBufferSize)
-			frameBuffer = make([]byte, ss)
 		}
 
-		err = m.read(frameBuffer[:header.size])
+		frameBuffer := make([]byte, header.size)
+		err = m.read(frameBuffer)
 		if err != nil {
 			log.Printf("media socket read data error %s\n", err)
 			return
 		}
 
 		if m.onData != nil {
-			m.onData(&header, frameBuffer[:header.size])
+			m.onData(&header, frameBuffer)
 		}
 	}
 }
