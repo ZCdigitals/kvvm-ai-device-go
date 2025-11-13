@@ -11,6 +11,8 @@ import (
 const (
 	HidKeyboardReportId = 0x01
 	HidMouseReportId    = 0x02
+	HidMousePositionMin = 0
+	HidMousePositionMax = 32768
 )
 
 type HidMouseData struct {
@@ -21,31 +23,22 @@ type HidMouseData struct {
 	Button3 bool `json:"button3"`
 }
 
-func NewHidMouseData(x, y int, buttons ...bool) *HidMouseData {
-	if x < 0 || x >= 32768 {
-		log.Println("x must be in [0, 32768)")
-		return &HidMouseData{}
-	} else if y < 0 || y >= 32768 {
-		log.Println("y must be in [0, 32768)")
-		return &HidMouseData{}
+func UnmarshalHidMouseData(data []byte) (HidMouseData, error) {
+	m := HidMouseData{}
+	err := json.Unmarshal(data, &m)
+
+	if err != nil {
+		log.Printf("hid mouse data unmarshal error %v", err)
+		return m, err
 	}
 
-	data := &HidMouseData{
-		X: x,
-		Y: y,
+	if m.X < HidMousePositionMin || m.X >= HidMousePositionMax {
+		return m, fmt.Errorf("hid mouse data unmarshal error, x must be in [%d, %d)", HidMousePositionMin, HidMousePositionMax)
+	} else if m.Y < HidMousePositionMin || m.Y >= HidMousePositionMax {
+		return m, fmt.Errorf("hid mouse data unmarshal error, y must be in [%d, %d)", HidMousePositionMin, HidMousePositionMax)
 	}
 
-	if len(buttons) > 0 {
-		data.Button1 = buttons[0]
-	}
-	if len(buttons) > 1 {
-		data.Button2 = buttons[1]
-	}
-	if len(buttons) > 2 {
-		data.Button3 = buttons[2]
-	}
-
-	return data
+	return m, err
 }
 
 type HidKeyboardData struct {
@@ -60,33 +53,16 @@ type HidKeyboardData struct {
 	Key6  *string `json:"key6,omitempty"`
 }
 
-func NewHidKeyboardData(ctrl, shift, alt bool, keys ...string) *HidKeyboardData {
-	data := &HidKeyboardData{
-		Ctrl:  ctrl,
-		Shift: shift,
-		Alt:   alt,
+func UnmarshalHidKeyboardData(data []byte) (HidKeyboardData, error) {
+	k := HidKeyboardData{}
+	err := json.Unmarshal(data, &k)
+
+	if err != nil {
+		log.Printf("hid keyboard data unmarshal error %v", err)
+		return k, err
 	}
 
-	if len(keys) > 0 && keys[0] != "" {
-		data.Key1 = &keys[0]
-	}
-	if len(keys) > 1 && keys[1] != "" {
-		data.Key2 = &keys[1]
-	}
-	if len(keys) > 2 && keys[2] != "" {
-		data.Key3 = &keys[2]
-	}
-	if len(keys) > 3 && keys[3] != "" {
-		data.Key4 = &keys[3]
-	}
-	if len(keys) > 4 && keys[4] != "" {
-		data.Key5 = &keys[4]
-	}
-	if len(keys) > 5 && keys[5] != "" {
-		data.Key6 = &keys[5]
-	}
-
-	return data
+	return k, err
 }
 
 type HidDataCategory string
@@ -102,34 +78,39 @@ type HidData struct {
 }
 
 func UnmarshalHidData(data []byte) (HidData, error) {
-	var h = HidData{}
+	h := HidData{}
 
 	// use raw
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
+		log.Printf("hid data unmarshal error %v", err)
 		return h, err
 	}
 
 	// use category
 	if err := json.Unmarshal(raw["category"], &h.Category); err != nil {
-		return h, fmt.Errorf("category must be string: %v", err)
+		return h, fmt.Errorf("hid data unmarshal error, category unmarshal error %v", err)
 	}
 
 	switch h.Category {
 	case HidDataCategoryMouse:
-		var mouseData HidMouseData
-		if err := json.Unmarshal(raw["data"], &mouseData); err != nil {
-			return h, fmt.Errorf("invalid mouse data: %v", err)
+		{
+			m, err := UnmarshalHidMouseData(raw["data"])
+			if err != nil {
+				return h, err
+			}
+			h.Data = m
 		}
-		h.Data = mouseData
 	case HidDataCategoryKeyboard:
-		var keyboardData HidKeyboardData
-		if err := json.Unmarshal(raw["data"], &keyboardData); err != nil {
-			return h, fmt.Errorf("invalid keyboard data: %v", err)
+		{
+			k, err := UnmarshalHidKeyboardData(raw["data"])
+			if err != nil {
+				return h, err
+			}
+			h.Data = k
 		}
-		h.Data = keyboardData
 	default:
-		return h, fmt.Errorf("unknown category: %s", h.Category)
+		return h, fmt.Errorf("hid data unmarshal error, unknown category %s", h.Category)
 	}
 
 	return h, nil
