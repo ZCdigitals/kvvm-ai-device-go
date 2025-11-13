@@ -196,13 +196,6 @@ func (h *HidController) WriteKeyboardReport(
 	ctrl, shift, alt bool,
 	key1, key2, key3, key4, key5, key6 *string,
 ) error {
-	keys := []*string{key1, key2, key3, key4, key5, key6}
-	keyCodes := make([]byte, 6)
-
-	for i, key := range keys {
-		keyCodes[i] = FindKeyCode(key)
-	}
-
 	// control buttons
 	modifiers := BoolsToInt(
 		ctrl,  // left ctrl
@@ -217,7 +210,12 @@ func (h *HidController) WriteKeyboardReport(
 
 	data := make([]byte, 7)
 	data[0] = byte(modifiers)
-	copy(data[1:], keyCodes)
+	data[1] = byte(FindKeyCode(key1))
+	data[2] = byte(FindKeyCode(key2))
+	data[3] = byte(FindKeyCode(key3))
+	data[4] = byte(FindKeyCode(key4))
+	data[5] = byte(FindKeyCode(key5))
+	data[6] = byte(FindKeyCode(key6))
 
 	return h.WriteReport(HidKeyboardReportId, data)
 }
