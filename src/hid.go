@@ -154,7 +154,9 @@ func (h *HidController) Close() error {
 }
 
 func (h *HidController) WriteReport(reportID byte, data []byte) error {
-	// log.Printf("write %d %v", reportID, data)
+	if h.fd == nil {
+		return fmt.Errorf("hid controller write error null fd")
+	}
 
 	// add id
 	report := append([]byte{reportID}, data...)
