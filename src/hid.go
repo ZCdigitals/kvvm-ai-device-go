@@ -143,6 +143,10 @@ func (h *HidController) Close() error {
 		return nil
 	}
 
+	// set all key up
+	h.SendMouse(HidMouseData{X: 100, Y: 100})
+	h.SendKeyboard(HidKeyboardData{})
+
 	err := h.fd.Close()
 	if err != nil {
 		log.Printf("hid controller close error %v", err)
