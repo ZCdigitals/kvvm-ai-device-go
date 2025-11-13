@@ -47,7 +47,7 @@ func NewDeviceMessage(t DeviceMessageType) DeviceMessage {
 }
 
 func UnmarshalDeviceMessage(data []byte) (DeviceMessage, error) {
-	m := NewDeviceMessage("")
+	m := DeviceMessage{}
 
 	err := json.Unmarshal(data, &m)
 
