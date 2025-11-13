@@ -277,16 +277,6 @@ func (h *HidController) Send(b []byte) error {
 	}
 }
 
-func BoolsToInt(bools ...bool) int {
-	result := 0
-	for i, b := range bools {
-		if b {
-			result |= 1 << i
-		}
-	}
-	return result
-}
-
 // https://usb.org/sites/default/files/hut1_22.pdf
 // https://developer.mozilla.org/zh-CN/docs/Web/API/KeyboardEvent/key
 var HIDKeyboardUsageTable = map[string]byte{

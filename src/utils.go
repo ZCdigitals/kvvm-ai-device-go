@@ -8,3 +8,13 @@ func Map[T any, U any](s []T, f func(T) U) []U {
 	}
 	return result
 }
+
+func BoolsToInt(bools ...bool) int {
+	result := 0
+	for i, b := range bools {
+		if b {
+			result |= 1 << i
+		}
+	}
+	return result
+}
