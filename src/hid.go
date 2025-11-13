@@ -175,9 +175,9 @@ func (h *HidController) WriteReport(reportID byte, data []byte) error {
 
 func (h *HidController) WriteMouseReport(btn1, btn2, btn3 bool, x, y int) error {
 	if x < 0 || x >= 32768 {
-		return fmt.Errorf("x must be [0-32768)")
+		return fmt.Errorf("hid controller write error x must be [0-32768)")
 	} else if y < 0 || y >= 32768 {
-		return fmt.Errorf("y must be [0-32768)")
+		return fmt.Errorf("hid controller write error y must be [0-32768)")
 	}
 
 	// buttons
