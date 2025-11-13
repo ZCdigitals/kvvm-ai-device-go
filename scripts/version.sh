@@ -71,5 +71,5 @@ fi
 VERSION_STRING="$MAJOR.$MINOR.$PATCH"
 
 write_version $VERSION_STRING
-create_tag $VERSION_STRING
+create_tag v$VERSION_STRING
 push
