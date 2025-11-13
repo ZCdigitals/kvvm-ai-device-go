@@ -1,0 +1,76 @@
+name: Build binary and Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "^1.24.7"
+          cache: true
+
+      - name: Build for arm 7
+        run: |
+          GOOS=linux GOARCH=arm GOARM=7
+          ./build.sh ci
+          tar -czf output/arm-unknown-linux-unknown-device.tar.gz output/device
+          sha256sum output/arm-unknown-linux-unknown-device.tar.gz > output/arm-unknown-linux-unknown-device.tar.gz.sha256
+
+      - name: Build for arm64 8
+        run: |
+          GOOS=linux GOARCH=arm64 GOARM=8
+          ./build.sh ci
+          tar -czf output/arm64-unknown-linux-unknown-device.tar.gz output/device
+          sha256sum output/arm64-unknown-linux-unknown-device.tar.gz > output/arm64-unknown-linux-unknown-device.tar.gz.sha256
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-files
+          path: |
+            output/arm-unknown-linux-unknown-device.tar.gz
+            output/arm-unknown-linux-unknown-device.tar.gz.sha256
+            output/arm64-unknown-linux-unknown-device.tar.gz
+            output/arm64-unknown-linux-unknown-device.tar.gz.sha256
+          retention-days: 1
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-files
+          path: ./output
+
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: |
+            Automated release for version ${{ github.ref_name }}
+
+            ## Assets
+            - `arm-unknown-linux-unknown-device.tar.gz`
+            - `arm-unknown-linux-unknown-device.tar.gz.sha256`
+            - `arm64-unknown-linux-unknown-device.tar.gz`
+            - `arm64-unknown-linux-unknown-device.tar.gz.sha256`
+          files: |
+            output/arm-unknown-linux-unknown-device.tar.gz
+            output/arm-unknown-linux-unknown-device.tar.gz.sha256
+            output/arm64-unknown-linux-unknown-device.tar.gz
+            output/arm64-unknown-linux-unknown-device.tar.gz.sha256
