@@ -73,7 +73,7 @@ func (m *MediaSocket) openListener() error {
 	// start listen
 	l, err := net.Listen("unix", m.path)
 	if err != nil {
-		log.Printf("media socket listener open error %s\n", err)
+		log.Printf("media socket listener open error %v\n", err)
 		return err
 	}
 	m.listener = &l
@@ -85,7 +85,7 @@ func (m *MediaSocket) closeListener() error {
 	if m.listener != nil {
 		err := (*m.listener).Close()
 		if err != nil {
-			log.Printf("media socket listener close error %s\n", err)
+			log.Printf("media socket listener close error %v\n", err)
 		}
 		m.listener = nil
 		os.Remove(m.path)
@@ -147,7 +147,7 @@ func (m *MediaSocket) startCmd() error {
 
 	err := m.cmd.Start()
 	if err != nil {
-		log.Printf("media socket cmd start error %s\n", err)
+		log.Printf("media socket cmd start error %v\n", err)
 		return err
 	}
 
@@ -201,7 +201,7 @@ func (m *MediaSocket) handle() {
 		frameBuffer := make([]byte, header.size)
 		err = m.read(frameBuffer)
 		if err != nil {
-			log.Printf("media socket read data error %s\n", err)
+			log.Printf("media socket read data error %v\n", err)
 			return
 		}
 
@@ -281,87 +281,168 @@ func (m *MediaSocket) Close() {
 	m.setRunning(false)
 }
 
+type MediaRtpOnData func(frame []byte)
+
 type MediaRtp struct {
 	device string
 	ip     string
 	port   int
 
-	listener *net.UDPConn
+	width  uint
+	height uint
+
+	running uint32
+
+	connection *net.UDPConn
 
 	cmd *exec.Cmd
+
+	onData MediaRtpOnData
 }
 
-func (rtp *MediaRtp) Init() error {
-	if rtp.listener != nil {
-		err := rtp.listener.Close()
-
-		if err != nil {
-			log.Printf("close rtp listener error %v", err)
-		}
-	}
-
-	if rtp.cmd != nil {
-		err := rtp.cmd.Cancel()
-
-		if err != nil {
-			log.Printf("cancel rtp cmd error %v", err)
-		}
-	}
-
-	listener, err := net.ListenUDP("udp", &net.UDPAddr{
-		IP:   net.ParseIP(rtp.ip),
-		Port: rtp.port,
+func (m *MediaRtp) openConnection() error {
+	c, err := net.ListenUDP("udp", &net.UDPAddr{
+		IP:   net.ParseIP(m.ip),
+		Port: m.port,
 	})
 	if err != nil {
+		log.Printf("media rtp connection open error %v\n", err)
 		return err
 	}
 
 	// Increase the UDP receive buffer size
 	// Default UDP buffer sizes vary on different operating systems
 	bufferSize := 300000 // 300KB
-	err = listener.SetReadBuffer(bufferSize)
+	err = c.SetReadBuffer(bufferSize)
 	if err != nil {
+		log.Printf("media rtp connection set buffer error %v\n", err)
 		return err
 	}
 
-	log.Println("rtp listen start")
+	m.connection = c
 
-	// run gstreamer
-	// device := "/dev/video0"
-	rtp.cmd = exec.Command("gst-launch-1.0", "-q",
-		"v4l2src", "device="+rtp.device, "io-mode=mmap", "!",
-		"video/x-raw,format=NV12,width=1920,height=1080", "!",
-		"mpph264enc", "gop=2", "!",
-		"rtph264pay", "config-interval=-1", "aggregate-mode=zero-latency", "!",
-		"udpsink", "host="+rtp.ip, "port="+fmt.Sprint(rtp.port),
-	)
+	return nil
+}
 
-	err = rtp.cmd.Start()
-	if err != nil {
+func (m *MediaRtp) closeConnection() error {
+	if m.connection != nil {
+		err := m.connection.Close()
+		if err != nil {
+			log.Printf("rtp listener close error %v", err)
+		}
+
 		return err
 	}
 
 	return nil
 }
 
-func (rtp *MediaRtp) Close() {
-	if rtp.cmd != nil {
-		err := rtp.cmd.Cancel()
-
-		if err != nil {
-			log.Printf("rtp cmd cancel error %v", err)
-		}
+func (m *MediaRtp) startCmd() error {
+	// avoid null connection
+	if m.cmd == nil {
+		return fmt.Errorf("media rtp null connection")
 	}
 
-	if rtp.listener != nil {
-		err := rtp.listener.Close()
+	m.cmd = exec.Command("gst-launch-1.0", "-q",
+		"v4l2src", "device="+m.device, "io-mode=mmap", "!",
+		fmt.Sprintf("video/x-raw,format=NV12,width=%d,height=%d", m.width, m.height), "!",
+		"mpph264enc", "gop=60", "!",
+		"rtph264pay", "config-interval=-1", "aggregate-mode=zero-latency", "!",
+		"rtpsink", "host="+m.ip, "port="+fmt.Sprint(m.port),
+	)
+
+	err := m.cmd.Start()
+	if err != nil {
+		log.Printf("media rtp cmd start error %v\n", err)
+		return err
+	}
+
+	return nil
+}
+
+func (m *MediaRtp) stopCmd() error {
+	if m.cmd != nil {
+		err := m.cmd.Process.Signal(os.Interrupt)
 		if err != nil {
-			log.Printf("rtp listener close error %v", err)
+			log.Printf("media socket cmd stop error %s\n", err)
+		}
+		m.cmd = nil
+
+		return err
+	}
+
+	return nil
+}
+
+func (m *MediaRtp) close() {
+	m.stopCmd()
+	m.closeConnection()
+}
+
+func (m *MediaRtp) handle() {
+	defer m.close()
+
+	for m.isRunning() {
+		frameBuffer := make([]byte, 1600) // UDP MTU
+		n, _, err := m.connection.ReadFrom(frameBuffer)
+		if err == io.EOF {
+			return
+		} else if err != nil {
+			log.Printf("media rtp read data error %v\n", err)
+			return
+		}
+
+		if m.onData != nil {
+			m.onData(frameBuffer[:n])
 		}
 	}
 }
 
-func (rtp *MediaRtp) Read(b []byte) (int, error) {
-	n, _, err := rtp.listener.ReadFrom(b)
-	return n, err
+func (m *MediaRtp) read(buffer []byte) (int, error) {
+	// avoid null connection
+	if m.connection == nil {
+		return 0, fmt.Errorf("media rtp null connection")
+	}
+
+	n, _, err := m.connection.ReadFrom(buffer)
+	if err == io.EOF {
+		return 0, nil
+	}
+
+	return n, nil
+}
+
+func (m *MediaRtp) isRunning() bool {
+	return atomic.LoadUint32(&m.running) == 1
+}
+
+func (m *MediaRtp) setRunning(running bool) {
+	if running {
+		atomic.StoreUint32(&m.running, 1)
+	} else {
+		atomic.StoreUint32(&m.running, 0)
+	}
+}
+
+func (m *MediaRtp) Open() error {
+	m.setRunning(true)
+
+	err := m.openConnection()
+	if err != nil {
+		return err
+	}
+
+	err = m.startCmd()
+	if err != nil {
+		m.closeConnection()
+		return err
+	}
+
+	go m.handle()
+
+	return nil
+}
+
+func (m *MediaRtp) Close() {
+	m.setRunning(false)
 }
