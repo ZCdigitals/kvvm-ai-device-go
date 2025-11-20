@@ -15,6 +15,7 @@ func main() {
 	var mqtt string
 	var ws string
 	var wsKey string
+	var mediaSource uint
 	var version bool
 
 	flag.StringVar(&id, "device-id", "", "Device ID")
@@ -22,6 +23,7 @@ func main() {
 	// flag.StringVar(&mqtt, "mqtt-broker", "mqtt://device:device12345@localhost:1883", "MQTT broker url")
 	flag.StringVar(&ws, "websocket", "ws://localhost:1883", "Websocket server url")
 	flag.StringVar(&wsKey, "websocket-key", "", "Websocket key")
+	flag.UintVar(&mediaSource, "media-source", 1, "Media source, 1 video, 2 gstreamer")
 	flag.BoolVar(&version, "version", false, "Print version")
 	flag.Parse()
 
@@ -30,12 +32,20 @@ func main() {
 		return
 	}
 
-	if (ws != "" && wsKey == "") || (ws == "" && wsKey != "") {
+	if id == "" {
+		log.Fatalln("Must input device id")
+	}
+
+	if mqtt == "" && ws == "" {
+		log.Fatalln("Must input websocket when disable mqtt")
+	}
+
+	if ws != "" && wsKey == "" {
 		log.Fatalln("Must input websocket-key when enable websocket")
 	}
 
 	// 初始化
-	d := src.Device{Id: id, MqttUrl: mqtt, WsUrl: ws, WsKey: wsKey}
+	d := src.Device{Id: id, MqttUrl: mqtt, WsUrl: ws, WsKey: wsKey, MediaSource: src.DeviceMediaSource(mediaSource)}
 	d.Init()
 
 	// 退出

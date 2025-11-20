@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strconv"
 	"sync/atomic"
 )
 
@@ -44,10 +45,15 @@ const (
 	maxFrameSize = 1 * 1024 * 1024
 )
 
-type MediaSocketOnData func(header *MediaFrameHeader, frame []byte)
+type MediaVideoOnData func(header *MediaFrameHeader, frame []byte)
 
-type MediaSocket struct {
-	path string
+type MediaVideo struct {
+	width      uint
+	height     uint
+	inputPath  string
+	outputPath string
+	bitRate    uint
+	gop        uint
 
 	running uint32
 
@@ -56,22 +62,27 @@ type MediaSocket struct {
 
 	cmd *exec.Cmd
 
-	onData MediaSocketOnData
+	onData MediaVideoOnData
 }
 
-func NewMediaSocket(path string) MediaSocket {
-	return MediaSocket{
-		path:    path,
-		running: 0,
+func NewMediaVideo(width uint, height uint, inputPath string, outputPath string, bitRate uint, gop uint) MediaVideo {
+	return MediaVideo{
+		width:      width,
+		height:     height,
+		inputPath:  inputPath,
+		outputPath: outputPath,
+		bitRate:    bitRate,
+		gop:        gop,
+		running:    0,
 	}
 }
 
-func (m *MediaSocket) openListener() error {
+func (m *MediaVideo) openListener() error {
 	// delete exists
-	os.Remove(m.path)
+	os.Remove(m.outputPath)
 
 	// start listen
-	l, err := net.Listen("unix", m.path)
+	l, err := net.Listen("unix", m.outputPath)
 	if err != nil {
 		log.Printf("media socket listener open error %v\n", err)
 		return err
@@ -81,14 +92,14 @@ func (m *MediaSocket) openListener() error {
 	return nil
 }
 
-func (m *MediaSocket) closeListener() error {
+func (m *MediaVideo) closeListener() error {
 	if m.listener != nil {
 		err := (*m.listener).Close()
 		if err != nil {
 			log.Printf("media socket listener close error %v\n", err)
 		}
 		m.listener = nil
-		os.Remove(m.path)
+		os.Remove(m.outputPath)
 
 		return err
 	}
@@ -96,7 +107,7 @@ func (m *MediaSocket) closeListener() error {
 	return nil
 }
 
-func (m *MediaSocket) openConnection() error {
+func (m *MediaVideo) openConnection() error {
 	// avoid null listener
 	if m.listener == nil {
 		return fmt.Errorf("media socket null listener")
@@ -112,7 +123,7 @@ func (m *MediaSocket) openConnection() error {
 	return nil
 }
 
-func (m *MediaSocket) closeConnection() error {
+func (m *MediaVideo) closeConnection() error {
 	if m.connection != nil {
 		err := (*m.connection).Close()
 		if err != nil {
@@ -126,17 +137,19 @@ func (m *MediaSocket) closeConnection() error {
 	return nil
 }
 
-func (m *MediaSocket) startCmd() error {
+func (m *MediaVideo) startCmd() error {
 	// avoid null listener
 	if m.listener == nil {
 		return fmt.Errorf("media socket null listener")
 	}
 
 	m.cmd = exec.Command(VIDEO_CMD,
-		"-w", "1920",
-		"-h", "1080",
-		"-i", "/dev/video0",
-		"-o", m.path,
+		"-w", strconv.FormatUint(uint64(m.width), 10),
+		"-h", strconv.FormatUint(uint64(m.height), 10),
+		"-i", m.inputPath,
+		"-o", m.outputPath,
+		"-b", strconv.FormatUint(uint64(m.bitRate), 10),
+		"-g", strconv.FormatUint(uint64(m.gop), 10),
 	)
 
 	// chmod
@@ -154,7 +167,7 @@ func (m *MediaSocket) startCmd() error {
 	return nil
 }
 
-func (m *MediaSocket) stopCmd() error {
+func (m *MediaVideo) stopCmd() error {
 	if m.cmd != nil {
 		err := m.cmd.Process.Signal(os.Interrupt)
 		if err != nil {
@@ -168,13 +181,13 @@ func (m *MediaSocket) stopCmd() error {
 	return nil
 }
 
-func (m *MediaSocket) close() {
+func (m *MediaVideo) close() {
 	m.stopCmd()
 	m.closeConnection()
 	m.closeListener()
 }
 
-func (m *MediaSocket) handle() {
+func (m *MediaVideo) handle() {
 	defer m.close()
 
 	headerBuffer := make([]byte, headerLength)
@@ -211,7 +224,7 @@ func (m *MediaSocket) handle() {
 	}
 }
 
-func (m *MediaSocket) read(buffer []byte) error {
+func (m *MediaVideo) read(buffer []byte) error {
 	// avoid null connection
 	if m.connection == nil {
 		return fmt.Errorf("media socket null connection")
@@ -239,11 +252,11 @@ func (m *MediaSocket) read(buffer []byte) error {
 	return nil
 }
 
-func (m *MediaSocket) isRunning() bool {
+func (m *MediaVideo) isRunning() bool {
 	return atomic.LoadUint32(&m.running) == 1
 }
 
-func (m *MediaSocket) setRunning(running bool) {
+func (m *MediaVideo) setRunning(running bool) {
 	if running {
 		atomic.StoreUint32(&m.running, 1)
 	} else {
@@ -251,7 +264,7 @@ func (m *MediaSocket) setRunning(running bool) {
 	}
 }
 
-func (m *MediaSocket) Open() error {
+func (m *MediaVideo) Open() error {
 	m.setRunning(true)
 
 	err := m.openListener()
@@ -277,19 +290,20 @@ func (m *MediaSocket) Open() error {
 	return nil
 }
 
-func (m *MediaSocket) Close() {
+func (m *MediaVideo) Close() {
 	m.setRunning(false)
 }
 
-type MediaRtpOnData func(frame []byte)
+type MediaGstOnData func(frame []byte)
 
-type MediaRtp struct {
-	device string
-	ip     string
-	port   int
-
-	width  uint
-	height uint
+type MediaGst struct {
+	width      uint
+	height     uint
+	inputPath  string
+	outputIp   string
+	outputPort int
+	bitRate    uint
+	gop        uint
 
 	running uint32
 
@@ -297,13 +311,26 @@ type MediaRtp struct {
 
 	cmd *exec.Cmd
 
-	onData MediaRtpOnData
+	onData MediaGstOnData
 }
 
-func (m *MediaRtp) openConnection() error {
+func NewMediaGst(width uint, height uint, inputPath string, outputIp string, outputPort int, bitRate uint, gop uint) MediaGst {
+	return MediaGst{
+		width:      width,
+		height:     height,
+		inputPath:  inputPath,
+		outputIp:   outputIp,
+		outputPort: outputPort,
+		bitRate:    bitRate,
+		gop:        gop,
+		running:    0,
+	}
+}
+
+func (m *MediaGst) openConnection() error {
 	c, err := net.ListenUDP("udp", &net.UDPAddr{
-		IP:   net.ParseIP(m.ip),
-		Port: m.port,
+		IP:   net.ParseIP(m.outputIp),
+		Port: m.outputPort,
 	})
 	if err != nil {
 		log.Printf("media rtp connection open error %v\n", err)
@@ -324,7 +351,7 @@ func (m *MediaRtp) openConnection() error {
 	return nil
 }
 
-func (m *MediaRtp) closeConnection() error {
+func (m *MediaGst) closeConnection() error {
 	if m.connection != nil {
 		err := m.connection.Close()
 		if err != nil {
@@ -337,18 +364,20 @@ func (m *MediaRtp) closeConnection() error {
 	return nil
 }
 
-func (m *MediaRtp) startCmd() error {
+func (m *MediaGst) startCmd() error {
 	// avoid null connection
 	if m.cmd == nil {
 		return fmt.Errorf("media rtp null connection")
 	}
 
 	m.cmd = exec.Command("gst-launch-1.0", "-q",
-		"v4l2src", "device="+m.device, "io-mode=mmap", "!",
+		// here we use `mmap` mode
+		// `drm` mode will get `core dump`, i do not know why
+		"v4l2src", "device="+m.inputPath, "io-mode=mmap", "!",
 		fmt.Sprintf("video/x-raw,format=NV12,width=%d,height=%d", m.width, m.height), "!",
-		"mpph264enc", "gop=60", "!",
+		"mpph264enc", fmt.Sprintf("gop=%d", m.gop), "!",
 		"rtph264pay", "config-interval=-1", "aggregate-mode=zero-latency", "!",
-		"rtpsink", "host="+m.ip, "port="+fmt.Sprint(m.port),
+		"udpsink", "host="+m.outputIp, fmt.Sprintf("port=%d", m.outputPort),
 	)
 
 	err := m.cmd.Start()
@@ -360,7 +389,7 @@ func (m *MediaRtp) startCmd() error {
 	return nil
 }
 
-func (m *MediaRtp) stopCmd() error {
+func (m *MediaGst) stopCmd() error {
 	if m.cmd != nil {
 		err := m.cmd.Process.Signal(os.Interrupt)
 		if err != nil {
@@ -374,12 +403,12 @@ func (m *MediaRtp) stopCmd() error {
 	return nil
 }
 
-func (m *MediaRtp) close() {
+func (m *MediaGst) close() {
 	m.stopCmd()
 	m.closeConnection()
 }
 
-func (m *MediaRtp) handle() {
+func (m *MediaGst) handle() {
 	defer m.close()
 
 	for m.isRunning() {
@@ -404,11 +433,11 @@ func (m *MediaRtp) handle() {
 	}
 }
 
-func (m *MediaRtp) isRunning() bool {
+func (m *MediaGst) isRunning() bool {
 	return atomic.LoadUint32(&m.running) == 1
 }
 
-func (m *MediaRtp) setRunning(running bool) {
+func (m *MediaGst) setRunning(running bool) {
 	if running {
 		atomic.StoreUint32(&m.running, 1)
 	} else {
@@ -416,7 +445,7 @@ func (m *MediaRtp) setRunning(running bool) {
 	}
 }
 
-func (m *MediaRtp) Open() error {
+func (m *MediaGst) Open() error {
 	m.setRunning(true)
 
 	err := m.openConnection()
@@ -435,6 +464,6 @@ func (m *MediaRtp) Open() error {
 	return nil
 }
 
-func (m *MediaRtp) Close() {
+func (m *MediaGst) Close() {
 	m.setRunning(false)
 }

@@ -6,11 +6,22 @@ import (
 	"github.com/pion/webrtc/v4"
 )
 
+const videoWidth uint = 1920
+const videoHeight uint = 1080
+const bitRate uint = 10 * 1024
+const gop uint = 60
+
+type DeviceMediaSource uint
+
+const DeviceMediaSourceVideo DeviceMediaSource = 1
+const DeviceMediaSourceGst DeviceMediaSource = 2
+
 type Device struct {
-	Id      string
-	WsUrl   string
-	WsKey   string
-	MqttUrl string
+	Id          string
+	WsUrl       string
+	WsKey       string
+	MqttUrl     string
+	MediaSource DeviceMediaSource
 
 	// signal resources
 	mqtt *Mqtt
@@ -20,7 +31,8 @@ type Device struct {
 	wrtc WebRTC
 
 	// device resources
-	ms  MediaSocket
+	mv  *MediaVideo
+	mg  *MediaGst
 	hid HidController
 }
 
@@ -61,14 +73,34 @@ func (d *Device) Init() {
 				d.ws.Close()
 				d.ws = nil
 			}
-			d.ms.Close()
+
+			if d.mv != nil {
+				d.mv.Close()
+			}
+			if d.mg != nil {
+				d.mg.Close()
+			}
 			d.hid.Close()
 		},
 	}
 
 	// create resources
-	d.ms = NewMediaSocket("/var/run/capture.sock")
-	// d.ms = *NewMediaSocket("/tmp/capture.sock")
+	switch d.MediaSource {
+	case DeviceMediaSourceVideo:
+		{
+			mv := NewMediaVideo(videoWidth, videoHeight, "/dev/video0", "/var/run/capture.sock", bitRate, gop)
+			d.mv = &mv
+			break
+		}
+	case DeviceMediaSourceGst:
+		{
+			mg := NewMediaGst(videoWidth, videoHeight, "/dev/video0", "localhost", 10000, bitRate, gop)
+			d.mg = &mg
+			break
+		}
+	default:
+		log.Fatalf("unknown media source %d", d.MediaSource)
+	}
 	d.hid = NewHidController("/dev/hidg1")
 }
 
@@ -81,8 +113,15 @@ func (d *Device) Close() {
 		d.ws.Close()
 		d.ws = nil
 	}
-	d.ms.Close()
+
+	if d.mv != nil {
+		d.mv.Close()
+	}
+	if d.mg != nil {
+		d.mg.Close()
+	}
 	d.hid.Close()
+
 	d.wrtc.Close()
 }
 
@@ -150,14 +189,25 @@ func (d *Device) webRTCStart(msg DeviceMessage) {
 	// open wrtc
 	d.wrtc.Open(iss)
 
-	// use video
-	d.wrtc.UseVideoTrackSample(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264})
+	if d.mv != nil {
+		// use video
+		d.wrtc.UseVideoTrackSample(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264})
 
-	d.ms.onData = func(header *MediaFrameHeader, frame []byte) {
-		d.wrtc.WriteVideoTrackSample(frame, header.timestamp)
+		d.mv.onData = func(header *MediaFrameHeader, frame []byte) {
+			d.wrtc.WriteVideoTrackSample(frame, header.timestamp)
+		}
+
+		d.mv.Open()
+	} else if d.mg != nil {
+		// use video
+		d.wrtc.UseVideoTrackRtp(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264})
+
+		d.mg.onData = func(frame []byte) {
+			d.wrtc.WriteVideoTrackRtp(frame)
+		}
+
+		d.mg.Open()
 	}
-
-	d.ms.Open()
 }
 
 func (d *Device) webRTCStop() {
