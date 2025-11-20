@@ -151,10 +151,10 @@ func (d *Device) webRTCStart(msg DeviceMessage) {
 	d.wrtc.Open(iss)
 
 	// use video
-	d.wrtc.UseTrack(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264})
+	d.wrtc.UseVideoTrackSample(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264})
 
 	d.ms.onData = func(header *MediaFrameHeader, frame []byte) {
-		d.wrtc.WriteVideoTrack(frame, header.timestamp)
+		d.wrtc.WriteVideoTrackSample(frame, header.timestamp)
 	}
 
 	d.ms.Open()

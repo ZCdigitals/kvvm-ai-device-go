@@ -384,6 +384,12 @@ func (m *MediaRtp) handle() {
 
 	for m.isRunning() {
 		frameBuffer := make([]byte, 1600) // UDP MTU
+
+		// avoid null connection
+		if m.connection == nil {
+			return
+		}
+
 		n, _, err := m.connection.ReadFrom(frameBuffer)
 		if err == io.EOF {
 			return
@@ -396,20 +402,6 @@ func (m *MediaRtp) handle() {
 			m.onData(frameBuffer[:n])
 		}
 	}
-}
-
-func (m *MediaRtp) read(buffer []byte) (int, error) {
-	// avoid null connection
-	if m.connection == nil {
-		return 0, fmt.Errorf("media rtp null connection")
-	}
-
-	n, _, err := m.connection.ReadFrom(buffer)
-	if err == io.EOF {
-		return 0, nil
-	}
-
-	return n, nil
 }
 
 func (m *MediaRtp) isRunning() bool {

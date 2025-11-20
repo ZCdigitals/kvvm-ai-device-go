@@ -21,8 +21,9 @@ type WebRTC struct {
 	pc *webrtc.PeerConnection
 
 	// video track
-	vt            *webrtc.TrackLocalStaticSample
+	vtSample      *webrtc.TrackLocalStaticSample
 	lastFrameTime time.Time
+	vtRtp         *webrtc.TrackLocalStaticRTP
 
 	// ice candidate
 	onIceCandidate WebRTCOnIceCandidate
@@ -33,8 +34,6 @@ type WebRTC struct {
 	// on close
 	onClose func()
 }
-
-func (wrtc *WebRTC) Init() {}
 
 func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer) {
 	// 准备配置
@@ -98,8 +97,11 @@ func (wrtc *WebRTC) Close() {
 		wrtc.onClose()
 	}
 
-	if wrtc.vt != nil {
-		wrtc.vt = nil
+	if wrtc.vtSample != nil {
+		wrtc.vtSample = nil
+	}
+	if wrtc.vtRtp != nil {
+		wrtc.vtRtp = nil
 	}
 
 	if wrtc.pc != nil {
@@ -137,7 +139,7 @@ func (wrtc *WebRTC) UseIceCandidate(candidate *webrtc.ICECandidateInit) {
 	log.Println("add remote ice candidate")
 }
 
-func (wrtc *WebRTC) UseTrack(capability webrtc.RTPCodecCapability) {
+func (wrtc *WebRTC) UseVideoTrackSample(capability webrtc.RTPCodecCapability) {
 	// Create a video track
 	vt, err := webrtc.NewTrackLocalStaticSample(
 		capability,
@@ -156,19 +158,51 @@ func (wrtc *WebRTC) UseTrack(capability webrtc.RTPCodecCapability) {
 	}
 	log.Println("add track")
 
-	wrtc.vt = vt
+	wrtc.vtSample = vt
 	wrtc.lastFrameTime = time.Now()
 }
 
-func (wrtc *WebRTC) WriteVideoTrack(b []byte, timestamp uint64) error {
-	if wrtc.vt == nil {
+func (wrtc *WebRTC) WriteVideoTrackSample(b []byte, timestamp uint64) error {
+	if wrtc.vtSample == nil {
 		return nil
 	}
 
 	t := time.UnixMicro(int64(timestamp))
 	// log.Println("write video track", timestamp)
-	err := wrtc.vt.WriteSample(media.Sample{Data: b, Duration: t.Sub(wrtc.lastFrameTime)})
+	err := wrtc.vtSample.WriteSample(media.Sample{Data: b, Duration: t.Sub(wrtc.lastFrameTime)})
 	wrtc.lastFrameTime = t
+
+	return err
+}
+
+func (wrtc *WebRTC) UseVideoTrackRtp(capability webrtc.RTPCodecCapability) {
+	// Create a video track
+	vt, err := webrtc.NewTrackLocalStaticRTP(
+		capability,
+		"video",
+		"kvvm",
+	)
+
+	if err != nil {
+		log.Fatalf("create video track error %V", err)
+	}
+	log.Println("create video track")
+
+	_, err = wrtc.pc.AddTrack(vt)
+	if err != nil {
+		log.Fatalf("add track error %v", err)
+	}
+	log.Println("add track")
+
+	wrtc.vtRtp = vt
+}
+
+func (wrtc *WebRTC) WriteVideoTrackRtp(b []byte) error {
+	if wrtc.vtRtp == nil {
+		return nil
+	}
+
+	_, err := wrtc.vtRtp.Write(b)
 
 	return err
 }
