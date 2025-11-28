@@ -3,7 +3,6 @@ package main
 
 import (
 	"device-go/src"
-	"flag"
 	"log"
 	"os"
 	"os/signal"
@@ -11,41 +10,15 @@ import (
 )
 
 func main() {
-	var id string
-	var mqtt string
-	var ws string
-	var wsKey string
-	var mediaSource uint
-	var version bool
+	args := src.ParseArgs()
 
-	flag.StringVar(&id, "device-id", "", "Device ID")
-	flag.StringVar(&mqtt, "mqtt-broker", "", "MQTT broker url")
-	// flag.StringVar(&mqtt, "mqtt-broker", "mqtt://device:device12345@localhost:1883", "MQTT broker url")
-	flag.StringVar(&ws, "websocket", "ws://localhost:1883", "Websocket server url")
-	flag.StringVar(&wsKey, "websocket-key", "", "Websocket key")
-	flag.UintVar(&mediaSource, "media-source", 1, "Media source, 1 video, 2 gstreamer")
-	flag.BoolVar(&version, "version", false, "Print version")
-	flag.Parse()
-
-	if version {
+	if args.Version {
 		log.Println(src.VersionLong())
 		return
 	}
 
-	if id == "" {
-		log.Fatalln("Must input device id")
-	}
-
-	if mqtt == "" && ws == "" {
-		log.Fatalln("Must input websocket when disable mqtt")
-	}
-
-	if ws != "" && wsKey == "" {
-		log.Fatalln("Must input websocket-key when enable websocket")
-	}
-
 	// 初始化
-	d := src.Device{Id: id, MqttUrl: mqtt, WsUrl: ws, WsKey: wsKey, MediaSource: src.DeviceMediaSource(mediaSource)}
+	d := src.Device{Id: args.Id, MqttUrl: "mqtt", WsUrl: "ws", WsKey: "wsKey", MediaSource: src.DeviceMediaSource(args.MediaSource)}
 	d.Init()
 
 	// 退出
