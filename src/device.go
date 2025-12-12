@@ -174,20 +174,30 @@ func (d *Device) handleMessage(msg []byte) DeviceMessage {
 
 	switch m.Type {
 	case WebSocketStart:
-		d.webSocketStart()
-		return NewDeviceMessage(WebSocketStart)
+		{
+			d.webSocketStart()
+			return NewDeviceMessage(WebSocketStart)
+		}
 	case WebSocketStop:
-		d.webSocketStop()
-		return NewDeviceMessage(WebSocketStop)
+		{
+			d.webSocketStop()
+			return NewDeviceMessage(WebSocketStop)
+		}
 	case WebRTCStart:
-		d.webRTCStart(m)
-		return NewDeviceMessage(WebRTCStart)
+		{
+			d.webRTCStart(m)
+			return NewDeviceMessage(WebRTCStart)
+		}
 	case WebRTCStop:
-		d.webRTCStop()
-		return NewDeviceMessage(WebRTCStop)
+		{
+			d.webRTCStop()
+			return NewDeviceMessage(WebRTCStop)
+		}
 	case WebRTCIceCandidate:
-		d.wrtc.UseIceCandidate(m.IceCandidate)
-		return NewDeviceMessage(WebRTCIceCandidate)
+		{
+			d.wrtc.UseIceCandidate(m.IceCandidate)
+			return NewDeviceMessage(WebRTCIceCandidate)
+		}
 	case WebRTCOffer:
 		{
 			mm := NewDeviceMessage(WebRTCAnswer)
@@ -196,10 +206,14 @@ func (d *Device) handleMessage(msg []byte) DeviceMessage {
 		}
 	case Error:
 	case "":
-		return NewDeviceMessage("")
+		{
+			return NewDeviceMessage("")
+		}
 	default:
-		log.Println("unknown request", m.Type)
-		return NewDeviceMessage("")
+		{
+			log.Println("unknown request", m.Type)
+			return NewDeviceMessage("")
+		}
 	}
 
 	return NewDeviceMessage("")
@@ -289,9 +303,11 @@ func (d *Device) useDataChannel(dc *webrtc.DataChannel) bool {
 			return true
 		}
 	default:
-		log.Printf("data channel unknown %d %s", *dc.ID(), dc.Label())
-		dc.Close()
-		return false
+		{
+			log.Printf("data channel unknown %d %s", *dc.ID(), dc.Label())
+			dc.Close()
+			return false
+		}
 	}
 }
 

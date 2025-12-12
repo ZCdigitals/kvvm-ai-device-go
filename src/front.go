@@ -326,43 +326,72 @@ func (f *Front) handle() {
 		// todo, process header
 		switch header.msgType {
 		case FrontMessageHeaderTypeTranscriptStart:
-			if f.onTranscriptStart != nil {
-				f.onTranscriptStart()
+			{
+				if f.onTranscriptStart != nil {
+					f.onTranscriptStart()
+				}
+				break
 			}
 		case FrontMessageHeaderTypeTranscriptStop:
-			if f.onTranscriptStop != nil {
-				f.onTranscriptStop()
+			{
+				if f.onTranscriptStop != nil {
+					f.onTranscriptStop()
+				}
+				break
 			}
 		case FrontMessageHeaderTypeTranscriptCancel:
-			if f.onTranscriptCancel != nil {
-				f.onTranscriptCancel()
+			{
+				if f.onTranscriptCancel != nil {
+					f.onTranscriptCancel()
+				}
+				break
 			}
 		case FrontMessageHeaderTypeApprovalAccept:
-			if f.onApprovalAccept != nil {
-				f.onApprovalAccept()
+			{
+				if f.onApprovalAccept != nil {
+					f.onApprovalAccept()
+				}
+				break
 			}
 		case FrontMessageHeaderTypeApprovalDeny:
-			if f.onApprovalDeny != nil {
-				f.onApprovalDeny()
+			{
+				if f.onApprovalDeny != nil {
+					f.onApprovalDeny()
+				}
+				break
 			}
 		case FrontMessageHeaderTypeApprovalCancel:
-			if f.onApprovalCancel != nil {
-				f.onApprovalCancel()
+			{
+				if f.onApprovalCancel != nil {
+					f.onApprovalCancel()
+				}
+				break
 			}
 		case FrontMessageHeaderTypeWorkflowRecordStart:
-			if f.onWorkflowRecortStart != nil {
-				f.onWorkflowRecortStart()
+			{
+				if f.onWorkflowRecortStart != nil {
+					f.onWorkflowRecortStart()
+				}
+				break
 			}
 		case FrontMessageHeaderTypeWorkflowRecordSave:
-			if f.onWorkflowRecortSave != nil {
-				f.onWorkflowRecortSave()
+			{
+				if f.onWorkflowRecortSave != nil {
+					f.onWorkflowRecortSave()
+				}
+				break
 			}
 		case FrontMessageHeaderTypeWorkflowRecordPause:
-			if f.onWorkflowRecortPause != nil {
-				f.onWorkflowRecortPause()
+			{
+				if f.onWorkflowRecortPause != nil {
+					f.onWorkflowRecortPause()
+				}
+				break
 			}
 		default:
-			log.Printf("front unknown message type %d\n", header.msgType)
+			{
+				log.Printf("front unknown message type %d\n", header.msgType)
+			}
 		}
 
 		if header.bodySize == 0 {

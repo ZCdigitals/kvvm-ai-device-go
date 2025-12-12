@@ -53,9 +53,15 @@ func (wrtc *WebRTC) Open(iceServers []webrtc.ICEServer) {
 		log.Println("webrtc connect state change", st)
 		switch st {
 		case webrtc.PeerConnectionStateClosed:
-			wrtc.Close()
+			{
+				wrtc.Close()
+				break
+			}
 		case webrtc.PeerConnectionStateFailed:
-			wrtc.Close()
+			{
+				wrtc.Close()
+				break
+			}
 		}
 	})
 

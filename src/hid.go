@@ -100,6 +100,7 @@ func UnmarshalHidData(data []byte) (HidData, error) {
 				return h, err
 			}
 			h.Data = m
+			break
 		}
 	case HidDataCategoryKeyboard:
 		{
@@ -108,9 +109,12 @@ func UnmarshalHidData(data []byte) (HidData, error) {
 				return h, err
 			}
 			h.Data = k
+			break
 		}
 	default:
-		return h, fmt.Errorf("hid data unmarshal error, unknown category %s", h.Category)
+		{
+			return h, fmt.Errorf("hid data unmarshal error, unknown category %s", h.Category)
+		}
 	}
 
 	return h, nil
