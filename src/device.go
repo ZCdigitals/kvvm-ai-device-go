@@ -123,6 +123,11 @@ func (d *Device) Init() {
 	d.hid = NewHidController("/dev/hidg1", "/sys/class/udc")
 	d.front = NewFront("/var/run/front.sock")
 
+	err := d.front.Open()
+	if err != nil {
+		log.Printf("device front open error %v\n", err)
+	}
+
 	// start
 	d.setRunning(true)
 	go d.loop()
