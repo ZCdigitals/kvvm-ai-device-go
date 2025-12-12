@@ -535,6 +535,17 @@ func (f *Front) SendLog(data string) {
 	f.send(FrontMessageHeaderTypeLog, []byte(data))
 }
 
+func (f *Front) SendApprovalStart(id uint32, app string, title string, desc string) {
+	ma := FrontMessageApproval{
+		id:    id,
+		app:   app,
+		title: title,
+		desc:  desc,
+	}
+
+	f.send(FrontMessageHeaderTypeApprovalStart, ma.ToBytes())
+}
+
 func (f *Front) SendApprovalEnd() {
 	f.send(FrontMessageHeaderTypeApprovalEnd, nil)
 }
