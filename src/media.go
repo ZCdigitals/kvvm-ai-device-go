@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 )
 
-const VIDEO_CMD string = "/root/video"
+const videoCmd string = "/root/video"
 
 type MediaFrameHeader struct {
 	id     uint32
@@ -40,9 +40,9 @@ func ParseMediaFrameHeader(b []byte) MediaFrameHeader {
 }
 
 const (
-	headerLength = 32
+	frameHeaderLength = 32
 	// frame is h264 encoded, 1MB should be enough
-	maxFrameSize = 1 * 1024 * 1024
+	frameLengthMax = 1 * 1024 * 1024
 )
 
 type MediaVideoOnData func(header *MediaFrameHeader, frame []byte)
@@ -143,7 +143,7 @@ func (m *MediaVideo) startCmd() error {
 		return fmt.Errorf("media socket null listener")
 	}
 
-	m.cmd = exec.Command(VIDEO_CMD,
+	m.cmd = exec.Command(videoCmd,
 		"-w", strconv.FormatUint(uint64(m.width), 10),
 		"-h", strconv.FormatUint(uint64(m.height), 10),
 		"-i", m.inputPath,
@@ -190,7 +190,7 @@ func (m *MediaVideo) close() {
 func (m *MediaVideo) handle() {
 	defer m.close()
 
-	headerBuffer := make([]byte, headerLength)
+	headerBuffer := make([]byte, frameHeaderLength)
 
 	for m.isRunning() {
 		err := m.read(headerBuffer)
@@ -206,7 +206,7 @@ func (m *MediaVideo) handle() {
 		if header.size == 0 {
 			log.Printf("media socket frame %d size is 0\n", header.id)
 			continue
-		} else if header.size > maxFrameSize {
+		} else if header.size > frameLengthMax {
 			log.Printf("media socket frame %d size is too larger %d\n", header.id, header.size)
 			continue
 		}
@@ -265,8 +265,6 @@ func (m *MediaVideo) setRunning(running bool) {
 }
 
 func (m *MediaVideo) Open() error {
-	m.setRunning(true)
-
 	err := m.openListener()
 	if err != nil {
 		return err
@@ -285,6 +283,7 @@ func (m *MediaVideo) Open() error {
 		return err
 	}
 
+	m.setRunning(true)
 	go m.handle()
 
 	return nil
