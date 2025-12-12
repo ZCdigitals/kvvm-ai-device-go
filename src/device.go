@@ -2,6 +2,8 @@ package src
 
 import (
 	"log"
+	"sync/atomic"
+	"time"
 
 	"github.com/pion/webrtc/v4"
 )
@@ -23,6 +25,8 @@ type Device struct {
 	MqttUrl     string
 	MediaSource DeviceMediaSource
 
+	running uint32
+
 	// signal resources
 	mqtt *Mqtt
 	ws   *WebSocket
@@ -34,6 +38,21 @@ type Device struct {
 	mv  *MediaVideo
 	mg  *MediaGst
 	hid HidController
+
+	// other resources
+	front Front
+}
+
+func (d *Device) isRunning() bool {
+	return atomic.LoadUint32(&d.running) == 1
+}
+
+func (d *Device) setRunning(running bool) {
+	if running {
+		atomic.StoreUint32(&d.running, 1)
+	} else {
+		atomic.StoreUint32(&d.running, 0)
+	}
 }
 
 func (d *Device) Init() {
@@ -101,10 +120,17 @@ func (d *Device) Init() {
 	default:
 		log.Fatalf("unknown media source %d", d.MediaSource)
 	}
-	d.hid = NewHidController("/dev/hidg1")
+	d.hid = NewHidController("/dev/hidg1", "/sys/class/udc")
+	d.front = NewFront("/var/run/front.sock")
+
+	// start
+	d.setRunning(true)
+	go d.loop()
 }
 
 func (d *Device) Close() {
+	d.setRunning(false)
+
 	if d.mqtt != nil {
 		d.mqtt.Close()
 		d.mqtt = nil
@@ -278,5 +304,22 @@ func (d *Device) sendIceCandidate(candidate *webrtc.ICECandidateInit) {
 		d.mqtt.Send(m)
 	} else {
 		log.Printf("can not send ice candidate")
+	}
+}
+
+func (d *Device) sendStatus() {
+	d.front.SendStatus(
+		d.mqtt.client.IsConnected(),
+		true,
+		d.hid.ReadStatus(),
+		false,
+		false,
+	)
+}
+
+func (d *Device) loop() {
+	for d.isRunning() {
+		d.sendStatus()
+		time.Sleep(3 * time.Second)
 	}
 }

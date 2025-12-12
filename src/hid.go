@@ -117,12 +117,13 @@ func UnmarshalHidData(data []byte) (HidData, error) {
 }
 
 type HidController struct {
-	path string
-	fd   *os.File
+	path    string
+	fd      *os.File
+	udcPath string
 }
 
-func NewHidController(path string) HidController {
-	return HidController{path: path}
+func NewHidController(path string, udcPath string) HidController {
+	return HidController{path: path, udcPath: udcPath}
 }
 
 func (h *HidController) Open() error {
@@ -260,6 +261,16 @@ func (h *HidController) Send(b []byte) error {
 	default:
 		return fmt.Errorf("unknown data type: %T", data)
 	}
+}
+
+func (h *HidController) ReadStatus() bool {
+	_, err := os.Stat(h.path)
+	if err != nil {
+		return false
+	}
+
+	_, err = os.Stat(h.udcPath)
+	return err == nil
 }
 
 // https://usb.org/sites/default/files/hut1_22.pdf
