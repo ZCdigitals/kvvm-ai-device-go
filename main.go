@@ -19,12 +19,6 @@ func main() {
 		return
 	}
 
-	if args.MqttUrl == "" {
-		log.Fatalln("Mqtt url is required")
-	} else if args.WsUrl == "" {
-		log.Fatalln("Mqtt url is required")
-	}
-
 	// 初始化
 	d := src.Device{
 		Args: args,

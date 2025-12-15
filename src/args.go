@@ -3,6 +3,7 @@ package src
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 )
 
@@ -70,6 +71,12 @@ func ParseArgs() Args {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
 		flag.PrintDefaults()
 		help = true
+	}
+
+	if mqttUrl == "" {
+		log.Fatalln("Mqtt url is required")
+	} else if wsUrl == "" {
+		log.Fatalln("Ws url is required")
 	}
 
 	return Args{
