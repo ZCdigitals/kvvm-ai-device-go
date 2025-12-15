@@ -152,10 +152,10 @@ func (ma *FrontMessageApproval) ToBytes() []byte {
 const frontCmd string = "/root/front"
 
 type Front struct {
-	messagePath string
-	messageId   uint32
+	socketPath string
 
-	running uint32
+	messageId uint32
+	running   uint32
 
 	listener   *net.Listener
 	connection *net.Conn
@@ -175,10 +175,9 @@ type Front struct {
 
 type FrontVoidCallback func()
 
-func NewFront(messagePath string) Front {
+func NewFront(socketPath string) Front {
 	return Front{
-		messagePath: messagePath,
-		messageId:   0,
+		socketPath: socketPath,
 	}
 }
 
@@ -204,10 +203,10 @@ func (f *Front) useMessageId() uint32 {
 
 func (f *Front) openListener() error {
 	// delete exists
-	os.Remove(f.messagePath)
+	os.Remove(f.socketPath)
 
 	// start listen
-	l, err := net.Listen("unix", f.messagePath)
+	l, err := net.Listen("unix", f.socketPath)
 	if err != nil {
 		log.Printf("front listener open error %v\n", err)
 		return err
@@ -224,7 +223,7 @@ func (f *Front) closeListener() error {
 			log.Printf("front listener close error %v\n", err)
 		}
 		f.listener = nil
-		os.Remove(f.messagePath)
+		os.Remove(f.socketPath)
 
 		return err
 	}
@@ -268,9 +267,10 @@ func (f *Front) startCmd() error {
 		return fmt.Errorf("front null listener")
 	}
 
-	f.cmd = exec.Command(frontCmd,
-		"-mv", Version,
-		"-mp", f.messagePath,
+	f.cmd = exec.Command(
+		frontCmd,
+		"--main-version", Version,
+		"--message-path", f.socketPath,
 	)
 
 	// chmod
