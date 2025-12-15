@@ -12,8 +12,6 @@ import (
 	"sync/atomic"
 )
 
-const videoCmd string = "/root/video"
-
 type MediaFrameHeader struct {
 	id     uint32
 	width  uint32
@@ -48,12 +46,14 @@ const (
 type MediaVideoOnData func(header *MediaFrameHeader, frame []byte)
 
 type MediaVideo struct {
-	width      uint
-	height     uint
-	inputPath  string
-	outputPath string
-	bitRate    uint
-	gop        uint
+	path       string
+	binPath    string
+	socketPath string
+
+	width   uint
+	height  uint
+	bitRate uint
+	gop     uint
 
 	running uint32
 
@@ -65,12 +65,13 @@ type MediaVideo struct {
 	onData MediaVideoOnData
 }
 
-func NewMediaVideo(width uint, height uint, inputPath string, outputPath string, bitRate uint, gop uint) MediaVideo {
+func NewMediaVideo(width uint, height uint, path string, binPath string, socketPath string, bitRate uint, gop uint) MediaVideo {
 	return MediaVideo{
 		width:      width,
 		height:     height,
-		inputPath:  inputPath,
-		outputPath: outputPath,
+		path:       path,
+		binPath:    binPath,
+		socketPath: socketPath,
 		bitRate:    bitRate,
 		gop:        gop,
 		running:    0,
@@ -79,10 +80,10 @@ func NewMediaVideo(width uint, height uint, inputPath string, outputPath string,
 
 func (m *MediaVideo) openListener() error {
 	// delete exists
-	os.Remove(m.outputPath)
+	os.Remove(m.socketPath)
 
 	// start listen
-	l, err := net.Listen("unix", m.outputPath)
+	l, err := net.Listen("unix", m.socketPath)
 	if err != nil {
 		log.Printf("media socket listener open error %v\n", err)
 		return err
@@ -99,7 +100,7 @@ func (m *MediaVideo) closeListener() error {
 			log.Printf("media socket listener close error %v\n", err)
 		}
 		m.listener = nil
-		os.Remove(m.outputPath)
+		os.Remove(m.socketPath)
 
 		return err
 	}
@@ -143,11 +144,11 @@ func (m *MediaVideo) startCmd() error {
 		return fmt.Errorf("media socket null listener")
 	}
 
-	m.cmd = exec.Command(videoCmd,
+	m.cmd = exec.Command(m.binPath,
 		"-w", strconv.FormatUint(uint64(m.width), 10),
 		"-h", strconv.FormatUint(uint64(m.height), 10),
-		"-i", m.inputPath,
-		"-o", m.outputPath,
+		"-i", m.path,
+		"-o", m.socketPath,
 		"-b", strconv.FormatUint(uint64(m.bitRate), 10),
 		"-g", strconv.FormatUint(uint64(m.gop), 10),
 	)

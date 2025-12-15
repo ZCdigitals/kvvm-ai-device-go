@@ -1,6 +1,7 @@
 package src
 
 import (
+	"fmt"
 	"log"
 	"sync/atomic"
 	"time"
@@ -13,40 +14,37 @@ const videoHeight uint = 1080
 const bitRate uint = 10 * 1024
 const gop uint = 60
 
-type DeviceMediaSource uint
-
-const DeviceMediaSourceVideo DeviceMediaSource = 1
-const DeviceMediaSourceGst DeviceMediaSource = 2
+const DeviceMediaSourceVideo uint = 1
+const DeviceMediaSourceGst uint = 2
 
 type Device struct {
-	Id          string
-	WsUrl       string
-	WsKey       string
-	MqttUrl     string
-	MediaSource DeviceMediaSource
+	// input args
+	Args Args
 
+	// internal
+	wsKey   string
 	running uint32
 
 	// signal resources
-	mqtt *Mqtt
+	mqtt Mqtt
 	ws   *WebSocket
 
 	// webrtc
-	wrtc WebRTC
+	wrtc *WebRTC
 
 	// device resources
-	mv  *MediaVideo
-	mg  *MediaGst
-	hid HidController
-
-	// other resources
+	mv    *MediaVideo
+	mg    *MediaGst
+	hid   *HidController
 	front Front
 }
 
+// device is running
 func (d *Device) isRunning() bool {
 	return atomic.LoadUint32(&d.running) == 1
 }
 
+// device set running
 func (d *Device) setRunning(running bool) {
 	if running {
 		atomic.StoreUint32(&d.running, 1)
@@ -55,74 +53,20 @@ func (d *Device) setRunning(running bool) {
 	}
 }
 
-func (d *Device) Init() {
-	if d.MqttUrl != "" {
-		// create mqtt
-		d.mqtt = &Mqtt{
-			id:  d.Id,
-			url: d.MqttUrl,
-			onRequest: func(msg []byte) {
-				m := d.handleMessage(msg)
-				d.mqtt.Send(m)
-			},
-		}
-		d.mqtt.Open()
-	} else if d.WsUrl != "" {
-		// create webscoket
-		d.ws = &WebSocket{
-			id:  d.Id,
-			url: d.WsUrl,
-			key: d.WsKey,
-			onMessage: func(msg []byte) {
-				m := d.handleMessage(msg)
-				d.ws.Send(m)
-			},
-		}
-		d.ws.Open()
-	} else {
-		log.Fatalln("Must set mqtt or ws")
-	}
-
-	// create webrtc
-	d.wrtc = WebRTC{
-		onIceCandidate: d.sendIceCandidate,
-		onDataChannel:  d.useDataChannel,
-		onClose: func() {
-			if d.mqtt != nil {
-				d.ws.Close()
-				d.ws = nil
-			}
-
-			if d.mv != nil {
-				d.mv.Close()
-			}
-			if d.mg != nil {
-				d.mg.Close()
-			}
-			d.hid.Close()
+// open
+func (d *Device) Open() {
+	// create mqtt
+	d.mqtt = Mqtt{
+		id:  d.Args.Id,
+		url: d.Args.MqttUrl,
+		onRequest: func(msg []byte) {
+			m := d.handleMqttMessage(msg)
+			d.mqtt.Send(m)
 		},
 	}
+	d.mqtt.Open()
 
-	// create resources
-	switch d.MediaSource {
-	case DeviceMediaSourceVideo:
-		{
-			mv := NewMediaVideo(videoWidth, videoHeight, "/dev/video0", "/var/run/capture.sock", bitRate, gop)
-			d.mv = &mv
-			break
-		}
-	case DeviceMediaSourceGst:
-		{
-			mg := NewMediaGst(videoWidth, videoHeight, "/dev/video0", "localhost", 10000, bitRate, gop)
-			d.mg = &mg
-			break
-		}
-	default:
-		log.Fatalf("unknown media source %d", d.MediaSource)
-	}
-	d.hid = NewHidController("/dev/hidg1", "/sys/class/udc")
 	d.front = NewFront("/var/run/front.sock")
-
 	err := d.front.Open()
 	if err != nil {
 		log.Printf("device front open error %v\n", err)
@@ -133,27 +77,17 @@ func (d *Device) Init() {
 	go d.loop()
 }
 
+// close
 func (d *Device) Close() {
 	d.setRunning(false)
 
-	if d.mqtt != nil {
-		d.mqtt.Close()
-		d.mqtt = nil
-	}
-	if d.ws != nil {
-		d.ws.Close()
-		d.ws = nil
-	}
+	d.mqtt.Close()
 
-	if d.mv != nil {
-		d.mv.Close()
-	}
-	if d.mg != nil {
-		d.mg.Close()
-	}
-	d.hid.Close()
+	d.wsStop()
+	d.mediaStop()
+	d.hidStop()
 
-	d.wrtc.Close()
+	d.wrtcStop()
 }
 
 type DeviceMessageIceServer struct {
@@ -170,7 +104,8 @@ func (iceServer *DeviceMessageIceServer) ToWebrtcIceServer() webrtc.ICEServer {
 	}
 }
 
-func (d *Device) handleMessage(msg []byte) DeviceMessage {
+// handle mqtt message
+func (d *Device) handleMqttMessage(msg []byte) DeviceMessage {
 	m, err := UnmarshalDeviceMessage(msg)
 
 	if err != nil {
@@ -180,31 +115,63 @@ func (d *Device) handleMessage(msg []byte) DeviceMessage {
 	switch m.Type {
 	case WebSocketStart:
 		{
-			d.webSocketStart()
+			d.wsStart()
 			return NewDeviceMessage(WebSocketStart)
 		}
 	case WebSocketStop:
 		{
-			d.webSocketStop()
+			d.wsStop()
 			return NewDeviceMessage(WebSocketStop)
 		}
+	case Error:
+	case "":
+		{
+			return NewDeviceMessage("")
+		}
+	default:
+		{
+			log.Println("unknown request", m.Type)
+			return NewDeviceMessage("")
+		}
+	}
+
+	return NewDeviceMessage("")
+}
+
+// handle ws message
+func (d *Device) handleWsMessage(msg []byte) DeviceMessage {
+	m, err := UnmarshalDeviceMessage(msg)
+
+	if err != nil {
+		return m
+	}
+
+	switch m.Type {
 	case WebRTCStart:
 		{
-			d.webRTCStart(m)
+			d.wrtcStart(m)
 			return NewDeviceMessage(WebRTCStart)
 		}
 	case WebRTCStop:
 		{
-			d.webRTCStop()
+			d.wrtcStop()
 			return NewDeviceMessage(WebRTCStop)
 		}
 	case WebRTCIceCandidate:
 		{
+			if d.wrtc == nil {
+				return NewDeviceMessage(Error)
+			}
+
 			d.wrtc.UseIceCandidate(m.IceCandidate)
 			return NewDeviceMessage(WebRTCIceCandidate)
 		}
 	case WebRTCOffer:
 		{
+			if d.wrtc == nil {
+				return NewDeviceMessage(Error)
+			}
+
 			mm := NewDeviceMessage(WebRTCAnswer)
 			mm.Answer = d.wrtc.UseOffer(m.Offer)
 			return mm
@@ -224,48 +191,148 @@ func (d *Device) handleMessage(msg []byte) DeviceMessage {
 	return NewDeviceMessage("")
 }
 
-func (d *Device) webRTCStart(msg DeviceMessage) {
+// webrtc start
+func (d *Device) wrtcStart(msg DeviceMessage) {
+	if d.wrtc != nil {
+		return
+	}
+
+	// create webrtc
+	wrtc := WebRTC{
+		onIceCandidate: d.sendIceCandidate,
+		onDataChannel:  d.useDataChannel,
+		onClose: func() {
+			d.wsStop()
+			d.mediaStop()
+			d.hidStop()
+		},
+	}
+	d.wrtc = &wrtc
+
 	// use ice servers
 	iss := make([]webrtc.ICEServer, len(msg.IceServers))
 	for i, v := range msg.IceServers {
 		iss[i] = v.ToWebrtcIceServer()
 	}
 
+	d.mediaStart()
+
 	// open wrtc
-	d.wrtc.Open(iss)
+	wrtc.Open(iss)
+}
 
+func (d *Device) wrtcStop() {
+	if d.wrtc == nil {
+		return
+	}
+
+	d.wrtc.Close()
+	d.wrtc = nil
+}
+
+func (d *Device) mediaStart() error {
+	if d.wrtc == nil {
+		return fmt.Errorf("device wrtc is nil")
+	}
+
+	switch d.Args.MediaSource {
+	case DeviceMediaSourceVideo:
+		{
+			if d.mv != nil {
+				return nil
+			}
+
+			mv := NewMediaVideo(videoWidth, videoHeight, d.Args.VideoPath, d.Args.VideoBinPath, d.Args.VideoSocketPath, bitRate, gop)
+			d.mv = &mv
+
+			// use video
+			d.wrtc.UseVideoTrackSample(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264})
+
+			d.mv.onData = func(header *MediaFrameHeader, frame []byte) {
+				d.wrtc.WriteVideoTrackSample(frame, header.timestamp)
+			}
+
+			d.mv.Open()
+			break
+		}
+	case DeviceMediaSourceGst:
+		{
+			if d.mg != nil {
+				return nil
+			}
+
+			mg := NewMediaGst(videoWidth, videoHeight, d.Args.VideoPath, "localhost", 10000, bitRate, gop)
+			d.mg = &mg
+
+			// use video
+			d.wrtc.UseVideoTrackRtp(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264})
+
+			d.mg.onData = func(frame []byte) {
+				d.wrtc.WriteVideoTrackRtp(frame)
+			}
+
+			d.mg.Open()
+			break
+		}
+	default:
+		return fmt.Errorf("unknown media source %d", d.Args.MediaSource)
+	}
+
+	return nil
+}
+
+func (d *Device) mediaStop() {
 	if d.mv != nil {
-		// use video
-		d.wrtc.UseVideoTrackSample(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264})
-
-		d.mv.onData = func(header *MediaFrameHeader, frame []byte) {
-			d.wrtc.WriteVideoTrackSample(frame, header.timestamp)
-		}
-
-		d.mv.Open()
+		d.mv.Close()
+		d.mv = nil
 	} else if d.mg != nil {
-		// use video
-		d.wrtc.UseVideoTrackRtp(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264})
-
-		d.mg.onData = func(frame []byte) {
-			d.wrtc.WriteVideoTrackRtp(frame)
-		}
-
-		d.mg.Open()
+		d.mg.Close()
+		d.mg = nil
 	}
 }
 
-func (d *Device) webRTCStop() {
-	d.wrtc.Close()
+func (d *Device) hidStart() error {
+	if d.hid != nil {
+		return nil
+	}
+
+	hid := NewHidController(d.Args.HidPath, d.Args.HidUdcPath)
+	d.hid = &hid
+
+	return hid.Open()
 }
 
-func (d *Device) webSocketStart() error {
-	ws := &WebSocket{
-		id:  d.Id,
-		url: d.WsUrl,
-		key: d.WsKey,
+func (d *Device) hidSend(b []byte) {
+	err := d.hid.Send(b)
+	if err != nil {
+		log.Printf("device hid send error %v\n", err)
+	}
+}
+
+func (d *Device) hidStop() {
+	if d.hid == nil {
+		return
+	}
+
+	d.hid.Close()
+	d.hid = nil
+}
+
+func (d *Device) wsStart() error {
+	if d.ws != nil {
+		return nil
+	}
+
+	ws := WebSocket{
+		id:  d.Args.Id,
+		url: d.Args.WsUrl,
+		key: d.wsKey,
 		onMessage: func(msg []byte) {
-			m := d.handleMessage(msg)
+			if d.ws == nil {
+				return
+			}
+
+			m := d.handleWsMessage(msg)
 			d.ws.Send(m)
 		},
 	}
@@ -275,15 +342,24 @@ func (d *Device) webSocketStart() error {
 		return err
 	}
 
-	d.ws = ws
+	d.ws = &ws
 
 	return nil
 }
 
-func (d *Device) webSocketStop() {
+func (d *Device) wsSend(m any) error {
+	if d.ws == nil {
+		return fmt.Errorf("device ws is nil")
+	}
+
+	return d.ws.Send(m)
+}
+
+func (d *Device) wsStop() {
 	if d.ws == nil {
 		return
 	}
+
 	d.ws.Close()
 	d.ws = nil
 }
@@ -292,17 +368,14 @@ func (d *Device) useDataChannel(dc *webrtc.DataChannel) bool {
 	switch dc.Label() {
 	case "hid":
 		{
-			err := d.hid.Open()
-			if err != nil {
-				return false
-			}
+			d.hidStart()
 
 			dc.OnOpen(func() {
 				log.Printf("data channel hid open %d\n", *dc.ID())
 			})
 
 			dc.OnMessage(func(dcmsg webrtc.DataChannelMessage) {
-				d.hid.Send(dcmsg.Data)
+				d.hidSend(dcmsg.Data)
 			})
 
 			return true
@@ -319,15 +392,15 @@ func (d *Device) useDataChannel(dc *webrtc.DataChannel) bool {
 func (d *Device) sendIceCandidate(candidate *webrtc.ICECandidateInit) {
 	m := NewDeviceMessage(WebRTCIceCandidate)
 	m.IceCandidate = candidate
-	if d.ws != nil {
-		d.ws.Send(m)
-	} else if d.mqtt != nil {
-		d.mqtt.Send(m)
-	} else {
-		log.Printf("can not send ice candidate")
+
+	err := d.wsSend(m)
+
+	if err != nil {
+		log.Printf("device send ice cadidate error %v\n", err)
 	}
 }
 
+// send status to front
 func (d *Device) sendStatus() {
 	d.front.SendStatus(
 		d.mqtt.client.IsConnected(),

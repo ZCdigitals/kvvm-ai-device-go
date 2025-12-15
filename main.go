@@ -15,11 +15,21 @@ func main() {
 	if args.Version {
 		log.Println(src.VersionLong())
 		return
+	} else if args.Help {
+		return
+	}
+
+	if args.MqttUrl == "" {
+		log.Fatalln("Mqtt url is required")
+	} else if args.WsUrl == "" {
+		log.Fatalln("Mqtt url is required")
 	}
 
 	// 初始化
-	d := src.Device{Id: args.Id, MqttUrl: "mqtt", WsUrl: "ws", WsKey: "wsKey", MediaSource: src.DeviceMediaSource(args.MediaSource)}
-	d.Init()
+	d := src.Device{
+		Args: args,
+	}
+	d.Open()
 
 	// 退出
 	defer d.Close()
