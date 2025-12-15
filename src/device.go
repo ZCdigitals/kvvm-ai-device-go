@@ -72,6 +72,9 @@ func (d *Device) Open() {
 		log.Printf("device front open error %v\n", err)
 	}
 
+	// todo, set key by app
+	d.wsSetKey("1234")
+
 	// start
 	d.setRunning(true)
 	go d.loop()
@@ -381,6 +384,14 @@ func (d *Device) wsStart() error {
 	d.ws = &ws
 
 	return nil
+}
+
+func (d *Device) wsSetKey(key string) {
+	if d.ws == nil {
+		return
+	}
+
+	d.ws.key = key
 }
 
 func (d *Device) wsSend(m any) error {
