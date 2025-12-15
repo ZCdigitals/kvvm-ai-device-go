@@ -230,6 +230,42 @@ func (d *Device) wrtcStop() {
 	d.wrtc = nil
 }
 
+func (d *Device) useDataChannel(dc *webrtc.DataChannel) bool {
+	switch dc.Label() {
+	case "hid":
+		{
+			d.hidStart()
+
+			dc.OnOpen(func() {
+				log.Printf("data channel hid open %d\n", *dc.ID())
+			})
+
+			dc.OnMessage(func(dcmsg webrtc.DataChannelMessage) {
+				d.hidSend(dcmsg.Data)
+			})
+
+			return true
+		}
+	default:
+		{
+			log.Printf("data channel unknown %d %s", *dc.ID(), dc.Label())
+			dc.Close()
+			return false
+		}
+	}
+}
+
+func (d *Device) sendIceCandidate(candidate *webrtc.ICECandidateInit) {
+	m := NewDeviceMessage(WebRTCIceCandidate)
+	m.IceCandidate = candidate
+
+	err := d.wsSend(m)
+
+	if err != nil {
+		log.Printf("device send ice cadidate error %v\n", err)
+	}
+}
+
 func (d *Device) mediaStart() error {
 	if d.wrtc == nil {
 		return fmt.Errorf("device wrtc is nil")
@@ -362,42 +398,6 @@ func (d *Device) wsStop() {
 
 	d.ws.Close()
 	d.ws = nil
-}
-
-func (d *Device) useDataChannel(dc *webrtc.DataChannel) bool {
-	switch dc.Label() {
-	case "hid":
-		{
-			d.hidStart()
-
-			dc.OnOpen(func() {
-				log.Printf("data channel hid open %d\n", *dc.ID())
-			})
-
-			dc.OnMessage(func(dcmsg webrtc.DataChannelMessage) {
-				d.hidSend(dcmsg.Data)
-			})
-
-			return true
-		}
-	default:
-		{
-			log.Printf("data channel unknown %d %s", *dc.ID(), dc.Label())
-			dc.Close()
-			return false
-		}
-	}
-}
-
-func (d *Device) sendIceCandidate(candidate *webrtc.ICECandidateInit) {
-	m := NewDeviceMessage(WebRTCIceCandidate)
-	m.IceCandidate = candidate
-
-	err := d.wsSend(m)
-
-	if err != nil {
-		log.Printf("device send ice cadidate error %v\n", err)
-	}
 }
 
 // send status to front
