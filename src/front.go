@@ -81,10 +81,10 @@ const (
 	frontMessageStatusUsbDisconnected = 0x1
 	frontMessageStatusUsbConnected    = 0x2
 
-	frontMessageStatusWifiUnknown    = 0x0
-	frontMessageStatusWifiDisable    = 0x1
-	frontMessageStatusWifiConnecting = 0x2
-	frontMessageStatusWifiConnected  = 0x3
+	frontMessageStatusWifiUnknown   = 0x0
+	frontMessageStatusWifiDisable   = 0x1
+	frontMessageStatusWifiEnable    = 0x2
+	frontMessageStatusWifiConnected = 0x3
 )
 
 const frontMessageStatusSize = 4 + 4 + 4 + 4
@@ -517,8 +517,7 @@ func (f *Front) SendStatus(
 	systemOnline bool,
 	hdmiConnected bool,
 	usbConnected bool,
-	wifiConnecting bool,
-	wifiConnected bool,
+	wifiStatus WifiStatus,
 ) error {
 	ms := FrontMessageStatus{
 		system: frontMessageStatusSystemUnknown,
@@ -545,10 +544,10 @@ func (f *Front) SendStatus(
 		ms.usb = frontMessageStatusUsbDisconnected
 	}
 
-	if wifiConnected {
+	if wifiStatus.Connected {
 		ms.wifi = frontMessageStatusWifiConnected
-	} else if wifiConnecting {
-		ms.wifi = frontMessageStatusWifiConnecting
+	} else if wifiStatus.Enable {
+		ms.wifi = frontMessageStatusWifiEnable
 	} else {
 		ms.wifi = frontMessageStatusWifiDisable
 	}

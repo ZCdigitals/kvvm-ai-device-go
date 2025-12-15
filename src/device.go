@@ -417,8 +417,10 @@ func (d *Device) sendStatus() {
 		d.mqtt.client.IsConnected(),
 		true,
 		d.hid.ReadStatus(),
-		false,
-		false,
+		WifiStatus{
+			Enable:    true,
+			Connected: true,
+		},
 	)
 }
 
