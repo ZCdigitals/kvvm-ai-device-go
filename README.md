@@ -24,10 +24,9 @@ or you may edit the `VIDEO_CMD` in `src/media.go`
 
 Args
 
-- `--device-id`		device id, get it on front, required.
-- `--mqtt-broker`	mqtt broker url, eg. `mqtt://192.168.1.100:1883`
-- `--websocket`		websocket url, eg. `ws://192.168.1.100:3000`, required
-- `--websocket-key`	websocket key, get it on front, required
+- `--id`		device id, get it on front, required.
+- `--mqtt-url`	mqtt broker url, eg. `mqtt://192.168.1.100:1883`
+- `--ws-url`		websocket url, eg. `ws://192.168.1.100:3000`, required
 - `--version`		print version information
 
 ## Develop
