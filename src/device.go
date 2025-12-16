@@ -211,6 +211,7 @@ func (d *Device) wrtcStart(msg DeviceMessage) {
 			d.wsStop()
 			d.mediaStop()
 			d.hidStop()
+			d.wrtc = nil
 		},
 	}
 	d.wrtc = &wrtc
