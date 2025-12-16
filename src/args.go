@@ -2,7 +2,6 @@ package src
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
 )
@@ -68,7 +67,7 @@ func ParseArgs() Args {
 	flag.BoolVar(&help, "help", false, "Print help")
 
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
+		log.Println("Usage of", os.Args[0])
 		flag.PrintDefaults()
 		help = true
 	}

@@ -85,7 +85,7 @@ func (m *MediaVideo) openListener() error {
 	// start listen
 	l, err := net.Listen("unix", m.socketPath)
 	if err != nil {
-		log.Printf("media socket listener open error %v\n", err)
+		log.Println("media socket listener open error", err)
 		return err
 	}
 	m.listener = &l
@@ -97,7 +97,7 @@ func (m *MediaVideo) closeListener() error {
 	if m.listener != nil {
 		err := (*m.listener).Close()
 		if err != nil {
-			log.Printf("media socket listener close error %v\n", err)
+			log.Println("media socket listener close error", err)
 		}
 		m.listener = nil
 		os.Remove(m.socketPath)
@@ -116,7 +116,7 @@ func (m *MediaVideo) openConnection() error {
 
 	c, err := (*m.listener).Accept()
 	if err != nil {
-		log.Printf("media socket connection open error %s\n", err)
+		log.Println("media socket connection open error", err)
 		return err
 	}
 	m.connection = &c
@@ -128,7 +128,7 @@ func (m *MediaVideo) closeConnection() error {
 	if m.connection != nil {
 		err := (*m.connection).Close()
 		if err != nil {
-			log.Printf("media socket connection close error %s\n", err)
+			log.Println("media socket connection close error", err)
 		}
 		m.connection = nil
 
@@ -161,7 +161,7 @@ func (m *MediaVideo) startCmd() error {
 
 	err := m.cmd.Start()
 	if err != nil {
-		log.Printf("media socket cmd start error %v\n", err)
+		log.Println("media socket cmd start error", err)
 		return err
 	}
 
@@ -172,7 +172,7 @@ func (m *MediaVideo) stopCmd() error {
 	if m.cmd != nil {
 		err := m.cmd.Process.Signal(os.Interrupt)
 		if err != nil {
-			log.Printf("media socket cmd stop error %s\n", err)
+			log.Println("media socket cmd stop error", err)
 		}
 		m.cmd = nil
 
@@ -196,7 +196,7 @@ func (m *MediaVideo) handle() {
 	for m.isRunning() {
 		err := m.read(headerBuffer)
 		if err != nil {
-			log.Printf("media socket read header error %s\n", err)
+			log.Println("media socket read header error", err)
 			return
 		}
 
@@ -205,17 +205,17 @@ func (m *MediaVideo) handle() {
 
 		// check size
 		if header.size == 0 {
-			log.Printf("media socket frame %d size is 0\n", header.id)
+			log.Println("media socket frame", header.id, "size is 0")
 			continue
 		} else if header.size > frameLengthMax {
-			log.Printf("media socket frame %d size is too larger %d\n", header.id, header.size)
+			log.Println("media socket frame", header.id, "size is too larger", header.size)
 			continue
 		}
 
 		frameBuffer := make([]byte, header.size)
 		err = m.read(frameBuffer)
 		if err != nil {
-			log.Printf("media socket read data error %v\n", err)
+			log.Println("media socket read data error", err)
 			return
 		}
 
@@ -333,7 +333,7 @@ func (m *MediaGst) openConnection() error {
 		Port: m.outputPort,
 	})
 	if err != nil {
-		log.Printf("media rtp connection open error %v\n", err)
+		log.Println("media rtp connection open error", err)
 		return err
 	}
 
@@ -342,7 +342,7 @@ func (m *MediaGst) openConnection() error {
 	bufferSize := 300000 // 300KB
 	err = c.SetReadBuffer(bufferSize)
 	if err != nil {
-		log.Printf("media rtp connection set buffer error %v\n", err)
+		log.Println("media rtp connection set buffer error", err)
 		return err
 	}
 
@@ -355,7 +355,7 @@ func (m *MediaGst) closeConnection() error {
 	if m.connection != nil {
 		err := m.connection.Close()
 		if err != nil {
-			log.Printf("rtp listener close error %v", err)
+			log.Println("rtp listener close error %v", err)
 		}
 
 		return err
@@ -382,7 +382,7 @@ func (m *MediaGst) startCmd() error {
 
 	err := m.cmd.Start()
 	if err != nil {
-		log.Printf("media rtp cmd start error %v\n", err)
+		log.Println("media rtp cmd start error", err)
 		return err
 	}
 
@@ -393,7 +393,7 @@ func (m *MediaGst) stopCmd() error {
 	if m.cmd != nil {
 		err := m.cmd.Process.Signal(os.Interrupt)
 		if err != nil {
-			log.Printf("media socket cmd stop error %s\n", err)
+			log.Println("media socket cmd stop error", err)
 		}
 		m.cmd = nil
 
@@ -423,7 +423,7 @@ func (m *MediaGst) handle() {
 		if err == io.EOF {
 			return
 		} else if err != nil {
-			log.Printf("media rtp read data error %v\n", err)
+			log.Println("media rtp read data error", err)
 			return
 		}
 

@@ -27,7 +27,7 @@ func (c *Mqtt) openClient() error {
 
 	uu, err := url.Parse(c.url)
 	if err != nil {
-		log.Printf("mqtt url parse error %v\n", err)
+		log.Println("mqtt url parse error", err)
 		return err
 	}
 
@@ -52,7 +52,7 @@ func (c *Mqtt) openClient() error {
 		log.Println("mqtt connected")
 	}
 	o.OnConnectionLost = func(client MQTT.Client, err error) {
-		log.Printf("mqtt connections lost %v\n", err)
+		log.Println("mqtt connections lost", err)
 	}
 
 	// create client
@@ -63,7 +63,7 @@ func (c *Mqtt) openClient() error {
 	token.Wait()
 	err = token.Error()
 	if err != nil {
-		log.Printf("mqtt connect error %v\n", err)
+		log.Println("mqtt connect error", err)
 		return err
 	}
 
@@ -77,7 +77,7 @@ func (c *Mqtt) useTopic(prop string) string {
 func (c *Mqtt) publish(prop string, message any) error {
 	j, err := json.Marshal(message)
 	if err != nil {
-		log.Printf("mqtt json marshal error %v", err)
+		log.Println("mqtt json marshal error", err)
 		return err
 	}
 
@@ -85,7 +85,7 @@ func (c *Mqtt) publish(prop string, message any) error {
 	token.Wait()
 	err = token.Error()
 	if err != nil {
-		log.Printf("mqtt publish error %v", err)
+		log.Println("mqtt publish error", err)
 		return err
 	}
 
@@ -97,7 +97,7 @@ func (c *Mqtt) subscribe(prop string, cb MQTT.MessageHandler) error {
 	token.Wait()
 	err := token.Error()
 	if err != nil {
-		log.Printf("mqtt subscribe error %v", err)
+		log.Println("mqtt subscribe error", err)
 		return err
 	}
 

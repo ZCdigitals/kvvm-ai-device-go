@@ -114,7 +114,7 @@ func (d *Device) handleMqttMessage(msg []byte) DeviceMessage {
 		return m
 	}
 
-	log.Printf("device mqtt message %s\n", m.Type)
+	log.Println("device mqtt message", m.Type)
 
 	switch m.Type {
 	case WebSocketStart:
@@ -150,7 +150,7 @@ func (d *Device) handleWsMessage(msg []byte) DeviceMessage {
 		return m
 	}
 
-	log.Printf("device ws message %s\n", m.Type)
+	log.Println("device ws message", m.Type)
 
 	switch m.Type {
 	case WebRTCStart:
@@ -244,7 +244,7 @@ func (d *Device) useDataChannel(dc *webrtc.DataChannel) bool {
 			d.hidStart()
 
 			dc.OnOpen(func() {
-				log.Printf("data channel hid open %d\n", *dc.ID())
+				log.Println("data channel hid open", *dc.ID())
 			})
 
 			dc.OnMessage(func(dcmsg webrtc.DataChannelMessage) {
@@ -255,7 +255,7 @@ func (d *Device) useDataChannel(dc *webrtc.DataChannel) bool {
 		}
 	default:
 		{
-			log.Printf("data channel unknown %d %s", *dc.ID(), dc.Label())
+			log.Println("data channel unknown", *dc.ID(), dc.Label())
 			dc.Close()
 			return false
 		}
@@ -269,7 +269,7 @@ func (d *Device) sendIceCandidate(candidate *webrtc.ICECandidateInit) {
 	err := d.wsSend(m)
 
 	if err != nil {
-		log.Printf("device send ice cadidate error %v\n", err)
+		log.Println("device send ice cadidate error", err)
 	}
 }
 
@@ -348,7 +348,7 @@ func (d *Device) hidStart() error {
 func (d *Device) hidSend(b []byte) {
 	err := d.hid.Send(b)
 	if err != nil {
-		log.Printf("device hid send error %v\n", err)
+		log.Println("device hid send error", err)
 	}
 }
 

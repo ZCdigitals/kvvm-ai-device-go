@@ -208,7 +208,7 @@ func (f *Front) openListener() error {
 	// start listen
 	l, err := net.Listen("unix", f.socketPath)
 	if err != nil {
-		log.Printf("front listener open error %v\n", err)
+		log.Println("front listener open error", err)
 		return err
 	}
 	f.listener = &l
@@ -220,7 +220,7 @@ func (f *Front) closeListener() error {
 	if f.listener != nil {
 		err := (*f.listener).Close()
 		if err != nil {
-			log.Printf("front listener close error %v\n", err)
+			log.Println("front listener close error", err)
 		}
 		f.listener = nil
 		os.Remove(f.socketPath)
@@ -239,7 +239,7 @@ func (f *Front) openConnection() error {
 
 	c, err := (*f.listener).Accept()
 	if err != nil {
-		log.Printf("front connection open error %s\n", err)
+		log.Println("front connection open error", err)
 		return err
 	}
 	f.connection = &c
@@ -251,7 +251,7 @@ func (f *Front) closeConnection() error {
 	if f.connection != nil {
 		err := (*f.connection).Close()
 		if err != nil {
-			log.Printf("front connection close error %s\n", err)
+			log.Println("front connection close error", err)
 		}
 		f.connection = nil
 
@@ -281,7 +281,7 @@ func (f *Front) startCmd() error {
 
 	err := f.cmd.Start()
 	if err != nil {
-		log.Printf("front cmd start error %v\n", err)
+		log.Println("front cmd start error", err)
 		return err
 	}
 
@@ -292,7 +292,7 @@ func (f *Front) stopCmd() error {
 	if f.cmd != nil {
 		err := f.cmd.Process.Signal(os.Interrupt)
 		if err != nil {
-			log.Printf("front cmd stop error %s\n", err)
+			log.Println("front cmd stop error", err)
 		}
 		f.cmd = nil
 
@@ -316,7 +316,7 @@ func (f *Front) handle() {
 	for f.isRunning() {
 		err := f.read(headerBuffer)
 		if err != nil {
-			log.Printf("front read header error %s\n", err)
+			log.Println("front read header error", err)
 			return
 		}
 
@@ -390,7 +390,7 @@ func (f *Front) handle() {
 			}
 		default:
 			{
-				log.Printf("front unknown message type %d\n", header.msgType)
+				log.Println("front unknown message type", header.msgType)
 			}
 		}
 
@@ -402,7 +402,7 @@ func (f *Front) handle() {
 
 		err = f.read(bodyBuffer)
 		if err != nil {
-			log.Printf("front read data error %v\n", err)
+			log.Println("front read data error", err)
 			return
 		}
 
@@ -467,7 +467,7 @@ func (f *Front) send(msgType uint32, body []byte) {
 	}
 	err := f.write(mh.ToBytes())
 	if err != nil {
-		log.Printf("front send header error %v\n", err)
+		log.Println("front send header error", err)
 		return
 	}
 
@@ -479,7 +479,7 @@ func (f *Front) send(msgType uint32, body []byte) {
 	// send body
 	err = f.write(body)
 	if err != nil {
-		log.Printf("front send body error %v\n", err)
+		log.Println("front send body error", err)
 		return
 	}
 }

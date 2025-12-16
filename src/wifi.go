@@ -22,7 +22,7 @@ func WifiReadStatus() WifiStatus {
 	)
 	output, err := cmd.Output()
 	if err != nil {
-		log.Printf("wifi read status wifi radio error %v\n", err)
+		log.Println("wifi read status wifi radio error", err)
 		return status
 	}
 	status.Enable = strings.TrimSpace(string(output)) == "enabled"
@@ -36,7 +36,7 @@ func WifiReadStatus() WifiStatus {
 	)
 	output, err = cmd.Output()
 	if err != nil {
-		log.Printf("wifi read status device status error %v\n", err)
+		log.Println("wifi read status device status error", err)
 		return status
 	}
 	lines := strings.SplitSeq(strings.TrimSpace(string(output)), "\n")

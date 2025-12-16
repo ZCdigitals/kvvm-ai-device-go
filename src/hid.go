@@ -28,7 +28,7 @@ func UnmarshalHidMouseData(data []byte) (HidMouseData, error) {
 	err := json.Unmarshal(data, &m)
 
 	if err != nil {
-		log.Printf("hid mouse data unmarshal error %v", err)
+		log.Println("hid mouse data unmarshal error", err)
 		return m, err
 	}
 
@@ -58,7 +58,7 @@ func UnmarshalHidKeyboardData(data []byte) (HidKeyboardData, error) {
 	err := json.Unmarshal(data, &k)
 
 	if err != nil {
-		log.Printf("hid keyboard data unmarshal error %v", err)
+		log.Println("hid keyboard data unmarshal error", err)
 		return k, err
 	}
 
@@ -83,13 +83,13 @@ func UnmarshalHidData(data []byte) (HidData, error) {
 	// use raw
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
-		log.Printf("hid data unmarshal error %v", err)
+		log.Println("hid data unmarshal error", err)
 		return h, err
 	}
 
 	// use category
 	if err := json.Unmarshal(raw["category"], &h.Category); err != nil {
-		return h, fmt.Errorf("hid data unmarshal error, category unmarshal error %v", err)
+		return h, fmt.Errorf("hid data unmarshal error, category unmarshal error", err)
 	}
 
 	switch h.Category {
@@ -133,7 +133,7 @@ func NewHidController(path string, udcPath string) HidController {
 func (h *HidController) Open() error {
 	fd, err := os.OpenFile(h.path, os.O_WRONLY, 0644)
 	if err != nil {
-		log.Printf("hid controller open error %v", err)
+		log.Println("hid controller open error", err)
 		return err
 	}
 
@@ -154,7 +154,7 @@ func (h *HidController) Close() error {
 
 	err := h.fd.Close()
 	if err != nil {
-		log.Printf("hid controller close error %v", err)
+		log.Println("hid controller close error", err)
 	}
 	h.fd = nil
 	log.Println("hid controller close")
@@ -171,7 +171,7 @@ func (h *HidController) WriteReport(reportID byte, data []byte) error {
 	report := append([]byte{reportID}, data...)
 
 	if _, err := h.fd.Write(report); err != nil {
-		log.Printf("hid controller write error %v", err)
+		log.Println("hid controller write error", err)
 		return err
 	}
 
@@ -255,7 +255,7 @@ func (h *HidController) Send(b []byte) error {
 		return err
 	}
 
-	// log.Printf("hid data %s", hidData.Category)
+	// log.Println("hid data %s", hidData.Category)
 
 	switch data := hd.Data.(type) {
 	case HidMouseData:
@@ -388,6 +388,6 @@ func FindKeyCode(key *string) byte {
 	}
 
 	// 如果键不存在，记录警告并返回0
-	log.Printf("Key %s not found in keyboard table", *key)
+	log.Println("Key", *key, "not found in keyboard table")
 	return 0x00
 }

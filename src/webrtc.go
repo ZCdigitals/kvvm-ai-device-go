@@ -113,7 +113,7 @@ func (wrtc *WebRTC) Close() {
 	if wrtc.pc != nil {
 		err := wrtc.pc.Close()
 		if err != nil {
-			log.Printf("wrtc peer connection close error %v", err)
+			log.Println("wrtc peer connection close error", err)
 		}
 	}
 }
@@ -216,7 +216,7 @@ func (wrtc *WebRTC) WriteVideoTrackRtp(b []byte) error {
 func (wrtc *WebRTC) CreateDataChannel(label string) *webrtc.DataChannel {
 	dc, err := wrtc.pc.CreateDataChannel(label, nil)
 	if err != nil {
-		log.Printf("wrtc data channel create error %v", err)
+		log.Println("wrtc data channel create error", err)
 		return nil
 	}
 

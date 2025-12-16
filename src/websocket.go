@@ -41,7 +41,7 @@ func (ws *WebSocket) openConnection() error {
 
 	connection, _, err := websocket.DefaultDialer.Dial(u.String(), header)
 	if err != nil {
-		log.Printf("webscoket open error %v\n", err)
+		log.Println("webscoket open error", err)
 		return err
 	}
 
@@ -73,7 +73,7 @@ func (ws *WebSocket) handle() {
 	for ws.isRunning() {
 		_, msg, err := ws.connection.ReadMessage()
 		if err != nil {
-			log.Printf("websocket read message error %v\n", err)
+			log.Println("websocket read message error", err)
 			continue
 		} else if ws.onMessage != nil {
 			ws.onMessage(msg)
@@ -123,7 +123,7 @@ func (ws *WebSocket) Send(message any) error {
 
 	j, err := json.Marshal(message)
 	if err != nil {
-		log.Printf("websocket json marshal error %v", err)
+		log.Println("websocket json marshal error", err)
 		return err
 	}
 
