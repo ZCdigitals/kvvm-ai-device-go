@@ -1,7 +1,12 @@
 #!/bin/sh
 #
 # config usb otg
-#
+
+### BEGIN INIT INFO
+# Provides:          usb hidg1
+# Default-Start:     1 2 3 4 5
+# Default-Stop:      0 6
+### END INIT INFO
 
 case "$1" in
     start)
@@ -9,14 +14,16 @@ case "$1" in
         /root/usb/setup_usb.sh
         ;;
     stop)
-        echo "Stopping OTG..."
 		# do nothing
         ;;
     restart|reload)
 		# do nothing
         ;;
+	status)
+		echo "Status"
+		;;
     *)
-        echo "Usage: $0 {start|stop|restart}"
+        echo "Usage: $0 {start|stop|restart|status}"
         exit 1
         ;;
 esac
