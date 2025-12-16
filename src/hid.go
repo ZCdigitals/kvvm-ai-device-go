@@ -89,7 +89,8 @@ func UnmarshalHidData(data []byte) (HidData, error) {
 
 	// use category
 	if err := json.Unmarshal(raw["category"], &h.Category); err != nil {
-		return h, fmt.Errorf("hid data unmarshal error, category unmarshal error", err)
+		log.Println("hid data category unmarshal error", err)
+		return h, err
 	}
 
 	switch h.Category {

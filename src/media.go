@@ -355,7 +355,7 @@ func (m *MediaGst) closeConnection() error {
 	if m.connection != nil {
 		err := m.connection.Close()
 		if err != nil {
-			log.Println("rtp listener close error %v", err)
+			log.Println("rtp listener close error", err)
 		}
 
 		return err
