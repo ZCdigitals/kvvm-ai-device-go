@@ -122,13 +122,12 @@ func UnmarshalHidData(data []byte) (HidData, error) {
 }
 
 type HidController struct {
-	path    string
-	fd      *os.File
-	udcPath string
+	path string
+	fd   *os.File
 }
 
-func NewHidController(path string, udcPath string) HidController {
-	return HidController{path: path, udcPath: udcPath}
+func NewHidController(path string) HidController {
+	return HidController{path: path}
 }
 
 func (h *HidController) Open() error {
@@ -144,9 +143,9 @@ func (h *HidController) Open() error {
 	return err
 }
 
-func (h *HidController) Close() error {
+func (h *HidController) Close() {
 	if h.fd == nil {
-		return nil
+		return
 	}
 
 	// set all key up
@@ -159,8 +158,6 @@ func (h *HidController) Close() error {
 	}
 	h.fd = nil
 	log.Println("hid controller close")
-
-	return err
 }
 
 func (h *HidController) WriteReport(reportID byte, data []byte) error {
@@ -274,8 +271,20 @@ func (h *HidController) ReadStatus() bool {
 		return false
 	}
 
-	_, err = os.Stat(h.udcPath)
-	return err == nil
+	// is running
+	if h.fd != nil {
+		return true
+	}
+
+	// try to open
+	err = h.Open()
+	if err != nil {
+		// open error
+		return false
+	}
+	h.Close()
+
+	return true
 }
 
 // https://usb.org/sites/default/files/hut1_22.pdf

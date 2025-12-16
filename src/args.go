@@ -18,7 +18,6 @@ type Args struct {
 	VideoSocketPath string
 
 	HidPath    string
-	HidUdcPath string
 
 	FrontBinPath    string
 	FrontSocketPath string
@@ -39,7 +38,6 @@ func ParseArgs() Args {
 	var videoSocketPath string
 
 	var hidPath string
-	var hidUdcPath string
 
 	var frontBinPath string
 	var frontSocketPath string
@@ -58,7 +56,6 @@ func ParseArgs() Args {
 	flag.StringVar(&videoSocketPath, "video-socket-path", "/var/run/capture.sock", "Video socket path")
 
 	flag.StringVar(&hidPath, "hid-path", "/dev/hidg0", "HID path")
-	flag.StringVar(&hidUdcPath, "hid-udc-path", "/sys/class/udc", "HID UDC path")
 
 	flag.StringVar(&frontBinPath, "front-bin-path", "/root/font", "Front bin path")
 	flag.StringVar(&frontSocketPath, "front-socket-path", "/var/run/front.sock", "Front socket path")
@@ -96,7 +93,6 @@ func ParseArgs() Args {
 		VideoSocketPath: videoSocketPath,
 
 		HidPath:    hidPath,
-		HidUdcPath: hidUdcPath,
 
 		FrontBinPath:    frontBinPath,
 		FrontSocketPath: frontSocketPath,

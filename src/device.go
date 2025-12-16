@@ -339,7 +339,7 @@ func (d *Device) hidStart() error {
 		return nil
 	}
 
-	hid := NewHidController(d.Args.HidPath, d.Args.HidUdcPath)
+	hid := NewHidController(d.Args.HidPath)
 	d.hid = &hid
 
 	return hid.Open()
@@ -412,10 +412,15 @@ func (d *Device) wsStop() {
 
 // send status to front
 func (d *Device) sendStatus() {
+	hidStatus := false
+	if d.hid != nil {
+		hidStatus = d.hid.ReadStatus()
+	}
+
 	d.front.SendStatus(
 		d.mqtt.client.IsConnected(),
 		true,
-		d.hid.ReadStatus(),
+		hidStatus,
 		WifiStatus{
 			Enable:    true,
 			Connected: true,
