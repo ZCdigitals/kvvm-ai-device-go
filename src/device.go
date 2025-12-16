@@ -66,18 +66,17 @@ func (d *Device) Open() {
 	}
 	d.mqtt.Open()
 
-	d.front = NewFront("/var/run/front.sock")
-	err := d.front.Open()
-	if err != nil {
-		log.Printf("device front open error %v\n", err)
-	}
+	d.wsKey = "ca612056d72344c07211e1eed4634ac593b4704ce65c4febc1bd336bd656404d"
 
-	// todo, set key by app
-	d.wsSetKey("1234")
+	d.front = NewFront("/var/run/front.sock")
+	// err := d.front.Open()
+	// if err != nil {
+	// 	log.Printf("device front open error %v\n", err)
+	// }
 
 	// start
 	d.setRunning(true)
-	go d.loop()
+	// go d.loop()
 }
 
 // close
@@ -115,6 +114,8 @@ func (d *Device) handleMqttMessage(msg []byte) DeviceMessage {
 		return m
 	}
 
+	log.Printf("device mqtt message %s\n", m.Type)
+
 	switch m.Type {
 	case WebSocketStart:
 		{
@@ -148,6 +149,8 @@ func (d *Device) handleWsMessage(msg []byte) DeviceMessage {
 	if err != nil {
 		return m
 	}
+
+	log.Printf("device ws message %s\n", m.Type)
 
 	switch m.Type {
 	case WebRTCStart:
@@ -218,10 +221,10 @@ func (d *Device) wrtcStart(msg DeviceMessage) {
 		iss[i] = v.ToWebrtcIceServer()
 	}
 
-	d.mediaStart()
-
 	// open wrtc
 	wrtc.Open(iss)
+
+	d.mediaStart()
 }
 
 func (d *Device) wrtcStop() {
@@ -374,6 +377,9 @@ func (d *Device) wsStart() error {
 			m := d.handleWsMessage(msg)
 			d.ws.Send(m)
 		},
+		onClose: func() {
+			d.ws = nil
+		},
 	}
 
 	err := ws.Open()
@@ -384,14 +390,6 @@ func (d *Device) wsStart() error {
 	d.ws = &ws
 
 	return nil
-}
-
-func (d *Device) wsSetKey(key string) {
-	if d.ws == nil {
-		return
-	}
-
-	d.ws.key = key
 }
 
 func (d *Device) wsSend(m any) error {

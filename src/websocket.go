@@ -15,10 +15,12 @@ import (
 type WebSocketOnMessage func(message []byte)
 
 type WebSocket struct {
-	id        string
-	url       string
-	key       string
+	id  string
+	url string
+	key string
+
 	onMessage WebSocketOnMessage
+	onClose   func()
 
 	running uint32
 
@@ -44,6 +46,10 @@ func (ws *WebSocket) openConnection() error {
 	}
 
 	ws.connection = connection
+	ws.connection.SetCloseHandler(func(code int, text string) error {
+		ws.Close()
+		return nil
+	})
 	log.Println("websocket open")
 
 	return nil
@@ -101,12 +107,18 @@ func (ws *WebSocket) Open() error {
 }
 
 func (ws *WebSocket) Close() {
+	if ws.onClose != nil {
+		ws.onClose()
+	}
+
 	ws.setRunning(false)
 }
 
 func (ws *WebSocket) Send(message any) error {
 	if ws.connection == nil {
-		return nil
+		return fmt.Errorf("websocket connection is null")
+	} else if !ws.isRunning() {
+		return fmt.Errorf("websocket is not running")
 	}
 
 	j, err := json.Marshal(message)

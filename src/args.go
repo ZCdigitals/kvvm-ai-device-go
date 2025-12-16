@@ -73,7 +73,13 @@ func ParseArgs() Args {
 		help = true
 	}
 
-	if mqttUrl == "" {
+	// parse
+	flag.Parse()
+
+	// valid args
+	if id == "" {
+		log.Fatalln("ID is required")
+	} else if mqttUrl == "" {
 		log.Fatalln("Mqtt url is required")
 	} else if wsUrl == "" {
 		log.Fatalln("Ws url is required")
