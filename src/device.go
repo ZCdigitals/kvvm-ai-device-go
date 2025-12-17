@@ -80,7 +80,7 @@ func (d *Device) Open() {
 
 	// start
 	d.setRunning(true)
-	// go d.loop()
+	go d.loop()
 }
 
 // close
@@ -422,15 +422,17 @@ func (d *Device) sendStatus() {
 		hidStatus = d.hid.ReadStatus()
 	}
 
-	d.front.SendStatus(
-		d.mqtt.client.IsConnected(),
-		true,
-		hidStatus,
-		WifiStatus{
-			Enable:    true,
-			Connected: true,
-		},
-	)
+	// d.front.SendStatus(
+	// 	d.mqtt.client.IsConnected(),
+	// 	true,
+	// 	hidStatus,
+	// 	WifiStatus{
+	// 		Enable:    true,
+	// 		Connected: true,
+	// 	},
+	// )
+
+	log.Println("status", d.mqtt.client.IsConnected(), d.vm.isConnected, hidStatus)
 }
 
 func (d *Device) loop() {
