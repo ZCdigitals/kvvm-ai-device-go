@@ -214,7 +214,7 @@ func (m *VideoMonitor) handle() {
 	for m.isRunning() {
 		err := m.read(buffer)
 		if err != nil {
-			log.Println("media socket read header error", err)
+			log.Println("video monitor read error", err)
 			return
 		}
 
