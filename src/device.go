@@ -69,7 +69,7 @@ func (d *Device) Open() {
 
 	d.wsKey = "ca612056d72344c07211e1eed4634ac593b4704ce65c4febc1bd336bd656404d"
 
-	d.front = NewFront("/var/run/front.sock")
+	d.front = NewFront(d.Args.FrontBinPath, d.Args.FrontSocketPath)
 	// err := d.front.Open()
 	// if err != nil {
 	// 	log.Printf("device front open error %v\n", err)

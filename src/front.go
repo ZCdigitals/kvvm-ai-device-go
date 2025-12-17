@@ -149,14 +149,13 @@ func (ma *FrontMessageApproval) ToBytes() []byte {
 	return b
 }
 
-const frontCmd string = "/root/front"
-
 type Front struct {
+	binPath    string
 	socketPath string
 
 	messageId uint32
 	running   uint32
-
+ 
 	listener   *net.Listener
 	connection *net.Conn
 
@@ -175,8 +174,9 @@ type Front struct {
 
 type FrontVoidCallback func()
 
-func NewFront(socketPath string) Front {
+func NewFront(binPath string, socketPath string) Front {
 	return Front{
+		binPath:    binPath,
 		socketPath: socketPath,
 	}
 }
@@ -268,7 +268,7 @@ func (f *Front) startCmd() error {
 	}
 
 	f.cmd = exec.Command(
-		frontCmd,
+		f.binPath,
 		"--main-version", Version,
 		"--message-path", f.socketPath,
 	)
