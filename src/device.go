@@ -36,6 +36,7 @@ type Device struct {
 	mv    *MediaVideo
 	mg    *MediaGst
 	hid   *HidController
+	vm    VideoMonitor
 	front Front
 }
 
@@ -74,6 +75,9 @@ func (d *Device) Open() {
 	// 	log.Printf("device front open error %v\n", err)
 	// }
 
+	d.vm = NewVideoMonitor(d.Args.VideoMonitorPath, d.Args.VideoMonitorBinPath, d.Args.VideoMonitorSocketPath)
+	d.vm.Open()
+
 	// start
 	d.setRunning(true)
 	// go d.loop()
@@ -87,6 +91,7 @@ func (d *Device) Close() {
 
 	d.wsStop()
 	d.mediaStop()
+	d.vm.Close()
 	d.hidStop()
 
 	d.wrtcStop()

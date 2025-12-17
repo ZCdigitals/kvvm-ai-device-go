@@ -17,7 +17,11 @@ type Args struct {
 	VideoBinPath    string
 	VideoSocketPath string
 
-	HidPath    string
+	VideoMonitorPath       string
+	VideoMonitorBinPath    string
+	VideoMonitorSocketPath string
+
+	HidPath string
 
 	FrontBinPath    string
 	FrontSocketPath string
@@ -36,6 +40,9 @@ func ParseArgs() Args {
 	var videoPath string
 	var videoBinPath string
 	var videoSocketPath string
+	var videoMonitorPath string
+	var videoMonitorBinPath string
+	var videoMonitorSocketPath string
 
 	var hidPath string
 
@@ -54,6 +61,9 @@ func ParseArgs() Args {
 	flag.StringVar(&videoPath, "video-path", "/dev/video0", "Video path")
 	flag.StringVar(&videoBinPath, "video-bin-path", "/root/video", "Video bin path")
 	flag.StringVar(&videoSocketPath, "video-socket-path", "/var/run/capture.sock", "Video socket path")
+	flag.StringVar(&videoMonitorPath, "video-monitor-path", "/dev/v4l-subdev2", "Video sub device path")
+	flag.StringVar(&videoMonitorBinPath, "video-monitor-bin-path", "/root/video-monitor", "Video monitor bin path")
+	flag.StringVar(&videoMonitorSocketPath, "video-monitor-socket-path", "/var/run/monitor.sock", "Video monitor socket path")
 
 	flag.StringVar(&hidPath, "hid-path", "/dev/hidg0", "HID path")
 
@@ -92,7 +102,7 @@ func ParseArgs() Args {
 		VideoBinPath:    videoBinPath,
 		VideoSocketPath: videoSocketPath,
 
-		HidPath:    hidPath,
+		HidPath: hidPath,
 
 		FrontBinPath:    frontBinPath,
 		FrontSocketPath: frontSocketPath,
