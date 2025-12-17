@@ -97,10 +97,13 @@ func ParseArgs() Args {
 		MqttUrl: mqttUrl,
 		WsUrl:   wsUrl,
 
-		MediaSource:     mediaSource,
-		VideoPath:       videoPath,
-		VideoBinPath:    videoBinPath,
-		VideoSocketPath: videoSocketPath,
+		MediaSource:            mediaSource,
+		VideoPath:              videoPath,
+		VideoBinPath:           videoBinPath,
+		VideoSocketPath:        videoSocketPath,
+		VideoMonitorPath:       videoMonitorPath,
+		VideoMonitorBinPath:    videoMonitorBinPath,
+		VideoMonitorSocketPath: videoMonitorSocketPath,
 
 		HidPath: hidPath,
 
