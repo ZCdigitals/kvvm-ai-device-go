@@ -122,12 +122,14 @@ func UnmarshalHidData(data []byte) (HidData, error) {
 }
 
 type HidController struct {
-	path string
-	fd   *os.File
+	path    string
+	udcPath string
+
+	fd *os.File
 }
 
-func NewHidController(path string) HidController {
-	return HidController{path: path}
+func NewHidController(path string, udcPath string) HidController {
+	return HidController{path: path, udcPath: udcPath}
 }
 
 func (h *HidController) Open() error {
@@ -276,15 +278,20 @@ func (h *HidController) ReadStatus() bool {
 		return true
 	}
 
-	// try to open
-	err = h.Open()
+	udc, err := os.ReadFile(h.udcPath)
 	if err != nil {
-		// open error
+		log.Println("hid controller read status udc error", err)
 		return false
 	}
-	h.Close()
 
-	return true
+	statePath := fmt.Sprintf("/sys/class/udc/%s/state", string(udc))
+	state, err := os.ReadFile(statePath)
+	if err != nil {
+		log.Println("hid controller read status state error", err)
+		return false
+	}
+
+	return string(state) != "not attached"
 }
 
 // https://usb.org/sites/default/files/hut1_22.pdf

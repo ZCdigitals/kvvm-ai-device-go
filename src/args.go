@@ -21,7 +21,8 @@ type Args struct {
 	VideoMonitorBinPath    string
 	VideoMonitorSocketPath string
 
-	HidPath string
+	HidPath    string
+	HidUdcPath string
 
 	FrontBinPath    string
 	FrontSocketPath string
@@ -45,6 +46,7 @@ func ParseArgs() Args {
 	var videoMonitorSocketPath string
 
 	var hidPath string
+	var hidUdcPath string
 
 	var frontBinPath string
 	var frontSocketPath string
@@ -66,6 +68,7 @@ func ParseArgs() Args {
 	flag.StringVar(&videoMonitorSocketPath, "video-monitor-socket-path", "/var/run/monitor.sock", "Video monitor socket path")
 
 	flag.StringVar(&hidPath, "hid-path", "/dev/hidg0", "HID path")
+	flag.StringVar(&hidUdcPath, "hid-udc-path", "/sys/kernel/config/usb_gadget/rockchip/UDC", "HID udc path")
 
 	flag.StringVar(&frontBinPath, "front-bin-path", "/root/font", "Front bin path")
 	flag.StringVar(&frontSocketPath, "front-socket-path", "/var/run/front.sock", "Front socket path")

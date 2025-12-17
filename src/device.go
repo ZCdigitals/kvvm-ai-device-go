@@ -35,7 +35,7 @@ type Device struct {
 	// device resources
 	mv    *MediaVideo
 	mg    *MediaGst
-	hid   *HidController
+	hid   HidController
 	vm    VideoMonitor
 	front Front
 }
@@ -69,6 +69,8 @@ func (d *Device) Open() {
 
 	d.wsKey = "ca612056d72344c07211e1eed4634ac593b4704ce65c4febc1bd336bd656404d"
 
+	d.hid = NewHidController(d.Args.HidPath, d.Args.HidUdcPath)
+
 	d.front = NewFront(d.Args.FrontBinPath, d.Args.FrontSocketPath)
 	// err := d.front.Open()
 	// if err != nil {
@@ -92,7 +94,7 @@ func (d *Device) Close() {
 	d.wsStop()
 	d.mediaStop()
 	d.vm.Close()
-	d.hidStop()
+	d.hid.Close()
 
 	d.wrtcStop()
 }
@@ -215,7 +217,7 @@ func (d *Device) wrtcStart(msg DeviceMessage) {
 		onClose: func() {
 			d.wsStop()
 			d.mediaStop()
-			d.hidStop()
+			d.hid.Close()
 			d.wrtc = nil
 		},
 	}
@@ -246,14 +248,14 @@ func (d *Device) useDataChannel(dc *webrtc.DataChannel) bool {
 	switch dc.Label() {
 	case "hid":
 		{
-			d.hidStart()
+			d.hid.Open()
 
 			dc.OnOpen(func() {
 				log.Println("data channel hid open", *dc.ID())
 			})
 
 			dc.OnMessage(func(dcmsg webrtc.DataChannelMessage) {
-				d.hidSend(dcmsg.Data)
+				d.hid.Send(dcmsg.Data)
 			})
 
 			return true
@@ -339,33 +341,6 @@ func (d *Device) mediaStop() {
 	}
 }
 
-func (d *Device) hidStart() error {
-	if d.hid != nil {
-		return nil
-	}
-
-	hid := NewHidController(d.Args.HidPath)
-	d.hid = &hid
-
-	return hid.Open()
-}
-
-func (d *Device) hidSend(b []byte) {
-	err := d.hid.Send(b)
-	if err != nil {
-		log.Println("device hid send error", err)
-	}
-}
-
-func (d *Device) hidStop() {
-	if d.hid == nil {
-		return
-	}
-
-	d.hid.Close()
-	d.hid = nil
-}
-
 func (d *Device) wsStart() error {
 	if d.ws != nil {
 		return nil
@@ -417,11 +392,6 @@ func (d *Device) wsStop() {
 
 // send status to front
 func (d *Device) sendStatus() {
-	hidStatus := false
-	if d.hid != nil {
-		hidStatus = d.hid.ReadStatus()
-	}
-
 	// d.front.SendStatus(
 	// 	d.mqtt.client.IsConnected(),
 	// 	true,
@@ -432,7 +402,7 @@ func (d *Device) sendStatus() {
 	// 	},
 	// )
 
-	log.Println("status", d.mqtt.client.IsConnected(), d.vm.isConnected, hidStatus)
+	log.Println("status", d.mqtt.client.IsConnected(), d.vm.isConnected, d.hid.ReadStatus())
 }
 
 func (d *Device) loop() {
