@@ -43,7 +43,7 @@ func (ws *WebSocket) setRunning(running bool) {
 
 func (ws *WebSocket) openConnection() error {
 	if ws.connection != nil {
-		return nil
+		return fmt.Errorf("webscoket connection exists")
 	}
 
 	header := http.Header{}
@@ -73,7 +73,7 @@ func (ws *WebSocket) openConnection() error {
 
 func (ws *WebSocket) closeConnection() error {
 	if ws.connection == nil {
-		return nil
+		return fmt.Errorf("webscoket null connection")
 	}
 
 	err := ws.connection.Close()
