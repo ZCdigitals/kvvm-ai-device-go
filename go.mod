@@ -6,6 +6,7 @@ toolchain go1.24.7
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.5.1
+	github.com/Microsoft/cognitive-services-speech-sdk-go v1.43.0
 	github.com/pion/mediadevices v0.7.1
 	github.com/pion/webrtc/v4 v4.0.9
 )

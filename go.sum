@@ -1,3 +1,5 @@
+github.com/Microsoft/cognitive-services-speech-sdk-go v1.43.0 h1:bDgQhYkvdyaRzwft+/nKtMWzgmphfUWydEUDTRF/Ur0=
+github.com/Microsoft/cognitive-services-speech-sdk-go v1.43.0/go.mod h1:ct4bG95K1Lu/c5y60PVGI1XOjo9aAcl80DD5dvu6zsg=
 github.com/blackjack/webcam v0.6.1 h1:K0T6Q0zto23U99gNAa5q/hFoye6uGcKr2aE6hFoxVoE=
 github.com/blackjack/webcam v0.6.1/go.mod h1:zs+RkUZzqpFPHPiwBZ6U5B34ZXXe9i+SiHLKnnukJuI=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
