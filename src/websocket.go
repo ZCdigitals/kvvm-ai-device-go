@@ -29,7 +29,23 @@ type WebSocket struct {
 	mux sync.RWMutex
 }
 
+func (ws *WebSocket) isRunning() bool {
+	return atomic.LoadUint32(&ws.running) == 1
+}
+
+func (ws *WebSocket) setRunning(running bool) {
+	if running {
+		atomic.StoreUint32(&ws.running, 1)
+	} else {
+		atomic.StoreUint32(&ws.running, 0)
+	}
+}
+
 func (ws *WebSocket) openConnection() error {
+	if ws.connection != nil {
+		return nil
+	}
+
 	header := http.Header{}
 	header.Add("x-device-key", ws.key)
 
@@ -81,18 +97,6 @@ func (ws *WebSocket) handle() {
 	}
 }
 
-func (ws *WebSocket) isRunning() bool {
-	return atomic.LoadUint32(&ws.running) == 1
-}
-
-func (ws *WebSocket) setRunning(running bool) {
-	if running {
-		atomic.StoreUint32(&ws.running, 1)
-	} else {
-		atomic.StoreUint32(&ws.running, 0)
-	}
-}
-
 func (ws *WebSocket) Open() error {
 	ws.setRunning(true)
 
@@ -117,8 +121,6 @@ func (ws *WebSocket) Close() {
 func (ws *WebSocket) Send(message any) error {
 	if ws.connection == nil {
 		return fmt.Errorf("websocket connection is null")
-	} else if !ws.isRunning() {
-		return fmt.Errorf("websocket is not running")
 	}
 
 	j, err := json.Marshal(message)
