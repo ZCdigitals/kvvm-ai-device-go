@@ -104,7 +104,11 @@ func (c *Mqtt) subscribe(prop string, cb MQTT.MessageHandler) error {
 	return nil
 }
 
-type mqttStatus struct {
+type MqttMessage struct {
+	Time int64 `json:"time"`
+}
+
+type MqttMessageStatus struct {
 	Time   int64 `json:"time"`
 	Status bool  `json:"status"`
 }
@@ -116,25 +120,27 @@ type mqttStatus struct {
 // }
 
 func (c *Mqtt) publishOffline() error {
-	s := mqttStatus{Status: false, Time: time.Now().Unix()}
+	s := MqttMessageStatus{
+		Status: false,
+		Time:   time.Now().Unix(),
+	}
 	return c.publish("status", s)
 }
 
-type mqttHeartbeat struct {
-	Time int64 `json:"time"`
-}
-
 func (c *Mqtt) publishHeartbeat() error {
-	s := mqttHeartbeat{Time: time.Now().Unix()}
+	s := MqttMessage{Time: time.Now().Unix()}
 	return c.publish("heartbeat", s)
 }
 
 func (c *Mqtt) subscribeRequest() error {
-	return c.subscribe("request", func(cc MQTT.Client, msg MQTT.Message) {
-		if c.onRequest != nil {
-			c.onRequest(msg.Payload())
-		}
-	})
+	return c.subscribe(
+		"request",
+		func(cc MQTT.Client, msg MQTT.Message) {
+			if c.onRequest != nil {
+				c.onRequest(msg.Payload())
+			}
+		},
+	)
 }
 
 func (c *Mqtt) publishResponse(data any) error {
