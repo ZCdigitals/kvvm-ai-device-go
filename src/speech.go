@@ -36,10 +36,7 @@ func UnmarshalSpeechResult(data []byte) (SpeechResult, error) {
 type SpeechRecordHeader struct {
 	id   uint32
 	rate uint32
-	// padding
-	_ uint32
 	// audio format
-	//
 	// 2 S16_LE
 	format    uint32
 	timestamp uint64
