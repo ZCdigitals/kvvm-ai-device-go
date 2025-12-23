@@ -36,6 +36,8 @@ func UnmarshalSpeechResult(data []byte) (SpeechResult, error) {
 type SpeechRecordHeader struct {
 	id   uint32
 	rate uint32
+	// padding
+	_ uint32
 	// audio format
 	//
 	// 2 S16_LE
@@ -47,16 +49,17 @@ type SpeechRecordHeader struct {
 
 func ParseSpeechRecordHeader(b []byte) SpeechRecordHeader {
 	return SpeechRecordHeader{
-		id:        binary.LittleEndian.Uint32(b[0:4]),
-		rate:      binary.LittleEndian.Uint32(b[4:8]),
-		format:    binary.LittleEndian.Uint32(b[8:12]),
-		timestamp: binary.LittleEndian.Uint64(b[12:20]),
-		size:      binary.LittleEndian.Uint32(b[20:24]),
-		reserved:  binary.LittleEndian.Uint32(b[24:28]),
+		id:     binary.LittleEndian.Uint32(b[0:4]),
+		rate:   binary.LittleEndian.Uint32(b[4:8]),
+		format: binary.LittleEndian.Uint32(b[8:12]),
+		// 跳过填充 b[12:16]
+		timestamp: binary.LittleEndian.Uint64(b[16:24]),
+		size:      binary.LittleEndian.Uint32(b[24:28]),
+		reserved:  binary.LittleEndian.Uint32(b[28:32]),
 	}
 }
 
-const recordHeaderLength = 28
+const recordHeaderLength = 32
 
 type SpeechOnText func(text string)
 
@@ -112,9 +115,15 @@ func (s *Speech) openConnection() error {
 		log.Fatalln("speech url parse error", err)
 	}
 	u.Path = fmt.Sprintf("/ws/device/%s/stt", s.id)
-	u.Query().Add("rate", strconv.FormatUint(uint64(s.sampleRate), 10))
-	u.Query().Add("bits", "16")
-	u.Query().Add("channel", strconv.FormatUint(uint64(s.channel), 10))
+
+	query := url.Values{}
+	query.Add("rate", strconv.FormatUint(uint64(s.sampleRate), 10))
+	query.Add("bits", "16")
+	query.Add("channel", strconv.FormatUint(uint64(s.channel), 10))
+
+	u.RawQuery = query.Encode()
+
+	log.Println("speech url", u.String())
 
 	connection, _, err := websocket.DefaultDialer.Dial(u.String(), header)
 	if err != nil {
@@ -279,9 +288,9 @@ func (s *Speech) closeSocketConnection() error {
 }
 
 func (s *Speech) startCmd() error {
-	// avoid null connection
-	if s.socketConnection == nil {
-		return fmt.Errorf("speech null socket connection")
+	// avoid null listener
+	if s.socketListener == nil {
+		return fmt.Errorf("speech null socket listener")
 	} else if s.cmd != nil {
 		return fmt.Errorf("speech cmd exists")
 	}
@@ -397,20 +406,16 @@ func (s *Speech) openSocket() error {
 		return err
 	}
 
-	go s.handleSocket()
-
 	return nil
 }
 
 func (s *Speech) closeSocket() {
-	s.stopCmd()
 	s.closeSocketConnection()
+	s.stopCmd()
 	s.closeSocketListener()
 }
 
 func (s *Speech) Open() error {
-	s.setRunning(true)
-
 	err := s.openConnection()
 	if err != nil {
 		return err
@@ -418,13 +423,16 @@ func (s *Speech) Open() error {
 
 	err = s.openSocket()
 	if err != nil {
+		log.Println("speech open socket error", err)
 		s.closeConnection()
 		return err
 	}
 
+	s.setRunning(true)
 	s.results = []SpeechResult{}
 
 	go s.handle()
+	go s.handleSocket()
 
 	return nil
 }
