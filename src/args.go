@@ -27,6 +27,12 @@ type Args struct {
 	FrontBinPath    string
 	FrontSocketPath string
 
+	SpeechHardware   string
+	SpeechBinPath    string
+	SpeechSocketPath string
+	SpeechSampleRate uint
+	SpeechChannel    uint
+
 	Version bool
 	Help    bool
 }
@@ -51,6 +57,12 @@ func ParseArgs() Args {
 	var frontBinPath string
 	var frontSocketPath string
 
+	var speechHardware string
+	var speechBinPath string
+	var SpeechSocketPath string
+	var speechSampleRate uint
+	var speechChannel uint
+
 	var version bool
 	var help bool
 
@@ -72,6 +84,12 @@ func ParseArgs() Args {
 
 	flag.StringVar(&frontBinPath, "front-bin-path", "/root/font", "Front bin path")
 	flag.StringVar(&frontSocketPath, "front-socket-path", "/var/run/front.sock", "Front socket path")
+
+	flag.StringVar(&speechHardware, "speech-hw", "hw:1,0", "Speech hardware")
+	flag.StringVar(&speechBinPath, "speech-bin-path", "/root/record", "Speech bin path")
+	flag.StringVar(&SpeechSocketPath, "speech-socket-path", "/var/run/record.sock", "Speech socket path")
+	flag.UintVar(&speechSampleRate, "speech-sample-rate", 44100, "Speech sample rate")
+	flag.UintVar(&speechChannel, "speech-channel", 1, "Speech channel")
 
 	flag.BoolVar(&version, "version", false, "Print version")
 	flag.BoolVar(&help, "help", false, "Print help")
@@ -112,6 +130,12 @@ func ParseArgs() Args {
 
 		FrontBinPath:    frontBinPath,
 		FrontSocketPath: frontSocketPath,
+
+		SpeechHardware:   speechHardware,
+		SpeechBinPath:    speechBinPath,
+		SpeechSocketPath: SpeechSocketPath,
+		SpeechSampleRate: speechSampleRate,
+		SpeechChannel:    speechChannel,
 
 		Version: version,
 		Help:    help,
