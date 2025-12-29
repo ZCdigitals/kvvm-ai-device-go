@@ -44,14 +44,6 @@ type VideoMonitor struct {
 	cmd *exec.Cmd
 }
 
-func NewVideoMonitor(path string, binPath string, socketPath string) VideoMonitor {
-	return VideoMonitor{
-		path:       path,
-		binPath:    binPath,
-		socketPath: socketPath,
-	}
-}
-
 func (m *VideoMonitor) isRunning() bool {
 	return atomic.LoadUint32(&m.running) == 1
 }

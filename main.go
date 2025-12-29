@@ -20,9 +20,7 @@ func main() {
 	}
 
 	// 初始化
-	d := src.Device{
-		Args: args,
-	}
+	d := src.NewDevice(args)
 	d.Open()
 
 	// 退出

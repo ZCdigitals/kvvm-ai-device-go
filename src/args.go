@@ -7,10 +7,10 @@ import (
 )
 
 type Args struct {
-	Id string
+	ServeUrl string
+	MqttUrl  string
 
-	MqttUrl string
-	WsUrl   string
+	ConfigPath string
 
 	MediaSource     uint
 	VideoPath       string
@@ -38,10 +38,10 @@ type Args struct {
 }
 
 func ParseArgs() Args {
-	var id string
-
+	var serveUrl string
 	var mqttUrl string
-	var wsUrl string
+
+	var configPath string
 
 	var mediaSource uint
 	var videoPath string
@@ -66,10 +66,10 @@ func ParseArgs() Args {
 	var version bool
 	var help bool
 
-	flag.StringVar(&id, "id", "", "device serial no")
-
+	flag.StringVar(&serveUrl, "serve-url", "", "Server url")
 	flag.StringVar(&mqttUrl, "mqtt-url", "", "Mqtt broker url")
-	flag.StringVar(&wsUrl, "ws-url", "", "Websoket url")
+
+	flag.StringVar(&configPath, "config-path", "/etc/kvvm-ai", "Config file path")
 
 	flag.UintVar(&mediaSource, "media-source", 1, "Media source, 1 video, 2 gstreamer")
 	flag.StringVar(&videoPath, "video-path", "/dev/video0", "Video path")
@@ -104,19 +104,17 @@ func ParseArgs() Args {
 	flag.Parse()
 
 	// valid args
-	if id == "" {
-		log.Fatalln("ID is required")
-	} else if mqttUrl == "" {
+	if mqttUrl == "" {
 		log.Fatalln("Mqtt url is required")
-	} else if wsUrl == "" {
-		log.Fatalln("Ws url is required")
+	} else if serveUrl == "" {
+		log.Fatalln("Server url is required")
 	}
 
 	return Args{
-		Id: id,
+		ServeUrl: serveUrl,
+		MqttUrl:  mqttUrl,
 
-		MqttUrl: mqttUrl,
-		WsUrl:   wsUrl,
+		ConfigPath: configPath,
 
 		MediaSource:            mediaSource,
 		VideoPath:              videoPath,

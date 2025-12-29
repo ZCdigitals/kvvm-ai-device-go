@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"sync"
 	"sync/atomic"
 
@@ -15,12 +14,11 @@ import (
 type WebSocketOnMessage func(message []byte)
 
 type WebSocket struct {
-	id  string
-	url string
-	key string
+	url         string
+	accessToken string
 
-	onMessage WebSocketOnMessage
-	onClose   func()
+	OnMessage WebSocketOnMessage
+	OnClose   func()
 
 	running uint32
 
@@ -41,21 +39,20 @@ func (ws *WebSocket) setRunning(running bool) {
 	}
 }
 
+func (ws *WebSocket) buildHeader() http.Header {
+	h := http.Header{}
+
+	h.Add("Authorization", fmt.Sprintf("Bearer %s", ws.accessToken))
+
+	return h
+}
+
 func (ws *WebSocket) openConnection() error {
 	if ws.connection != nil {
 		return fmt.Errorf("webscoket connection exists")
 	}
 
-	header := http.Header{}
-	header.Add("x-device-key", ws.key)
-
-	u, err := url.Parse(ws.url)
-	if err != nil {
-		log.Fatalf("websocket url parse error %v\n", err)
-	}
-	u.Path = fmt.Sprintf("/ws/device/%s/response", ws.id)
-
-	connection, _, err := websocket.DefaultDialer.Dial(u.String(), header)
+	connection, _, err := websocket.DefaultDialer.Dial(ws.url, ws.buildHeader())
 	if err != nil {
 		log.Println("webscoket open error", err)
 		return err
@@ -91,8 +88,8 @@ func (ws *WebSocket) handle() {
 		if err != nil {
 			log.Println("websocket read message error", err)
 			continue
-		} else if ws.onMessage != nil {
-			ws.onMessage(msg)
+		} else if ws.OnMessage != nil {
+			ws.OnMessage(msg)
 		}
 	}
 }
@@ -111,8 +108,8 @@ func (ws *WebSocket) Open() error {
 }
 
 func (ws *WebSocket) Close() {
-	if ws.onClose != nil {
-		ws.onClose()
+	if ws.OnClose != nil {
+		ws.OnClose()
 	}
 
 	ws.setRunning(false)
@@ -131,7 +128,5 @@ func (ws *WebSocket) Send(message any) error {
 
 	ws.mux.Lock()
 	defer ws.mux.Unlock()
-	err = ws.connection.WriteMessage(websocket.BinaryMessage, j)
-
-	return err
+	return ws.connection.WriteMessage(websocket.TextMessage, j)
 }

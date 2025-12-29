@@ -18,26 +18,60 @@ const DeviceMediaSourceVideo uint = 1
 const DeviceMediaSourceGst uint = 2
 
 type Device struct {
-	// input args
-	Args Args
-
-	// internal
-	wsKey   string
 	running uint32
 
+	cf ConfigFile
+
 	// signal resources
-	mqtt Mqtt
-	ws   *WebSocket
+	serveUrl   string
+	api        ServeApi
+	mqttUrl    string
+	mqtt       *Mqtt
+	responseWs *WebSocket
 
 	// webrtc
 	wrtc *WebRTC
 
 	// device resources
-	mv    *MediaVideo
-	mg    *MediaGst
-	hid   HidController
-	vm    VideoMonitor
-	front Front
+	mediaSource     uint
+	videoPath       string
+	videoBinPath    string
+	videoSocketPath string
+	mv              *MediaVideo
+	mg              *MediaGst
+	hid             HidController
+	vm              VideoMonitor
+	front           Front
+}
+
+func NewDevice(args Args) Device {
+	return Device{
+		cf: ConfigFile{
+			path: args.ConfigPath,
+		},
+
+		// signal resources
+		serveUrl: args.ServeUrl,
+		api: ServeApi{
+			baseUrl: args.ServeUrl,
+		},
+		mqttUrl: args.MqttUrl,
+
+		// device resources
+		mediaSource: args.MediaSource,
+		hid: HidController{
+			path: args.HidPath,
+		},
+		vm: VideoMonitor{
+			path:       args.VideoMonitorPath,
+			binPath:    args.VideoMonitorBinPath,
+			socketPath: args.VideoMonitorSocketPath,
+		},
+		front: Front{
+			binPath:    args.FrontBinPath,
+			socketPath: args.FrontSocketPath,
+		},
+	}
 }
 
 // device is running
@@ -56,28 +90,34 @@ func (d *Device) setRunning(running bool) {
 
 // open
 func (d *Device) Open() {
-	// create mqtt
-	d.mqtt = Mqtt{
-		id:  d.Args.Id,
-		url: d.Args.MqttUrl,
-		onRequest: func(msg []byte) {
-			m := d.handleMqttMessage(msg)
-			d.mqtt.Send(m)
-		},
+	// load config
+	d.cf.Load()
+
+	// set api auth
+	d.api.accessToken = d.cf.config.AccessToken
+	d.api.accessTokenExpiresAt = d.cf.config.AccessTokenExpiresAt
+	d.api.refreshToken = d.cf.config.RefreshToken
+	d.api.refreshTokenExpiresAt = d.cf.config.RefreshTokenExpiresAt
+
+	// if id exists, use mqtt
+	if d.cf.config.ID != "" {
+		mqtt := Mqtt{
+			id:  d.cf.config.ID,
+			url: d.mqttUrl,
+			onRequest: func(msg []byte) {
+				m := d.handleMqttMessage(msg)
+				d.mqtt.Send(m)
+			},
+		}
+		mqtt.Open()
+		d.mqtt = &mqtt
 	}
-	d.mqtt.Open()
 
-	d.wsKey = "ca612056d72344c07211e1eed4634ac593b4704ce65c4febc1bd336bd656404d"
-
-	d.hid = NewHidController(d.Args.HidPath, d.Args.HidUdcPath)
-
-	d.front = NewFront(d.Args.FrontBinPath, d.Args.FrontSocketPath)
 	// err := d.front.Open()
 	// if err != nil {
 	// 	log.Printf("device front open error %v\n", err)
 	// }
 
-	d.vm = NewVideoMonitor(d.Args.VideoMonitorPath, d.Args.VideoMonitorBinPath, d.Args.VideoMonitorSocketPath)
 	d.vm.Open()
 
 	// start
@@ -285,14 +325,22 @@ func (d *Device) mediaStart() error {
 		return fmt.Errorf("device wrtc is nil")
 	}
 
-	switch d.Args.MediaSource {
+	switch d.mediaSource {
 	case DeviceMediaSourceVideo:
 		{
 			if d.mv != nil {
 				return nil
 			}
 
-			mv := NewMediaVideo(videoWidth, videoHeight, d.Args.VideoPath, d.Args.VideoBinPath, d.Args.VideoSocketPath, bitRate, gop)
+			mv := MediaVideo{
+				width:      videoWidth,
+				height:     videoHeight,
+				path:       d.videoPath,
+				binPath:    d.videoBinPath,
+				socketPath: d.videoSocketPath,
+				bitRate:    bitRate,
+				gop:        gop,
+			}
 			d.mv = &mv
 
 			// use video
@@ -311,7 +359,15 @@ func (d *Device) mediaStart() error {
 				return nil
 			}
 
-			mg := NewMediaGst(videoWidth, videoHeight, d.Args.VideoPath, "localhost", 10000, bitRate, gop)
+			mg := MediaGst{
+				width:      videoWidth,
+				height:     videoHeight,
+				inputPath:  d.videoPath,
+				outputIp:   "localhost",
+				outputPort: 10000,
+				bitRate:    bitRate,
+				gop:        gop,
+			}
 			d.mg = &mg
 
 			// use video
@@ -325,7 +381,7 @@ func (d *Device) mediaStart() error {
 			break
 		}
 	default:
-		return fmt.Errorf("unknown media source %d", d.Args.MediaSource)
+		return fmt.Errorf("unknown media source %d", d.mediaSource)
 	}
 
 	return nil
@@ -342,52 +398,40 @@ func (d *Device) mediaStop() {
 }
 
 func (d *Device) wsStart() error {
-	if d.ws != nil {
+	if d.responseWs != nil {
 		return nil
 	}
 
-	ws := WebSocket{
-		id:  d.Args.Id,
-		url: d.Args.WsUrl,
-		key: d.wsKey,
-		onMessage: func(msg []byte) {
-			if d.ws == nil {
-				return
-			}
-
-			m := d.handleWsMessage(msg)
-			d.ws.Send(m)
-		},
-		onClose: func() {
-			d.ws = nil
-		},
-	}
-
-	err := ws.Open()
+	ws, err := d.api.UseDeviceResponse(d.cf.config.ID)
 	if err != nil {
 		return err
 	}
 
-	d.ws = &ws
+	err = ws.Open()
+	if err != nil {
+		return err
+	}
+
+	d.responseWs = ws
 
 	return nil
 }
 
 func (d *Device) wsSend(m any) error {
-	if d.ws == nil {
-		return fmt.Errorf("device ws is nil")
+	if d.responseWs == nil {
+		return fmt.Errorf("device response ws is nil")
 	}
 
-	return d.ws.Send(m)
+	return d.responseWs.Send(m)
 }
 
 func (d *Device) wsStop() {
-	if d.ws == nil {
+	if d.responseWs == nil {
 		return
 	}
 
-	d.ws.Close()
-	d.ws = nil
+	d.responseWs.Close()
+	d.responseWs = nil
 }
 
 // send status to front

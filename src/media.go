@@ -65,19 +65,6 @@ type MediaVideo struct {
 	onData MediaVideoOnData
 }
 
-func NewMediaVideo(width uint, height uint, path string, binPath string, socketPath string, bitRate uint, gop uint) MediaVideo {
-	return MediaVideo{
-		width:      width,
-		height:     height,
-		path:       path,
-		binPath:    binPath,
-		socketPath: socketPath,
-		bitRate:    bitRate,
-		gop:        gop,
-		running:    0,
-	}
-}
-
 func (m *MediaVideo) openListener() error {
 	// delete exists
 	os.Remove(m.socketPath)
@@ -312,19 +299,6 @@ type MediaGst struct {
 	cmd *exec.Cmd
 
 	onData MediaGstOnData
-}
-
-func NewMediaGst(width uint, height uint, inputPath string, outputIp string, outputPort int, bitRate uint, gop uint) MediaGst {
-	return MediaGst{
-		width:      width,
-		height:     height,
-		inputPath:  inputPath,
-		outputIp:   outputIp,
-		outputPort: outputPort,
-		bitRate:    bitRate,
-		gop:        gop,
-		running:    0,
-	}
 }
 
 func (m *MediaGst) openConnection() error {

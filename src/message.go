@@ -22,8 +22,8 @@ const (
 )
 
 type DeviceMessage struct {
-	Time int64             `json:"time,omitempty"`
-	Type DeviceMessageType `json:"type,omitempty"`
+	Time int64             `json:"time"`
+	Type DeviceMessageType `json:"type"`
 
 	// webrtc start
 	IceServers []DeviceMessageIceServer `json:"iceServers,omitempty"`

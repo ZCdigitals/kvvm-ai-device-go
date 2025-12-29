@@ -155,7 +155,7 @@ type Front struct {
 
 	messageId uint32
 	running   uint32
- 
+
 	listener   *net.Listener
 	connection *net.Conn
 
@@ -173,13 +173,6 @@ type Front struct {
 }
 
 type FrontVoidCallback func()
-
-func NewFront(binPath string, socketPath string) Front {
-	return Front{
-		binPath:    binPath,
-		socketPath: socketPath,
-	}
-}
 
 func (f *Front) isRunning() bool {
 	return atomic.LoadUint32(&f.running) == 1
