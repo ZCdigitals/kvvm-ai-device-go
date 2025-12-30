@@ -11,7 +11,7 @@ type WifiStatus struct {
 	Connected bool
 }
 
-func WifiReadStatus() WifiStatus {
+func ReadWifiStatus() WifiStatus {
 	status := WifiStatus{}
 
 	// check if enable
@@ -53,7 +53,7 @@ func WifiReadStatus() WifiStatus {
 	return status
 }
 
-func WifiConnect(ssid string, password string) error {
+func ConnectWifi(ssid string, password string) error {
 	cmd := exec.Command(
 		"nmcli",
 		"device",
