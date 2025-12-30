@@ -8,12 +8,16 @@ import (
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
 type SocketOnData func(header SocketHeader, body []byte)
 
 type Socket struct {
 	path string
+
+	messageId uint32
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -191,6 +195,55 @@ func (s *Socket) read(ctx context.Context, buffer []byte) error {
 	return nil
 }
 
+func (s *Socket) useMessageId() uint32 {
+	id := atomic.LoadUint32(&s.messageId)
+
+	atomic.AddUint32(&s.messageId, 1)
+
+	return id
+}
+
+func (s *Socket) send(header [8]uint32, body []byte) error {
+	size := uint32(0)
+	if body != nil {
+		size = uint32(len(body))
+	}
+
+	// send header
+	h := SocketHeader{
+		ID:        s.useMessageId(),
+		Size:      size,
+		Timestamp: uint64(time.Now().UnixMicro()),
+		Reserved:  header,
+	}
+	err := s.write(h.ToBytes())
+	if err != nil {
+		return err
+	}
+
+	// no body
+	if size == 0 {
+		return nil
+	}
+
+	// send body
+	return s.write(body)
+}
+
+func (s *Socket) write(b []byte) error {
+	s.connectionMu.RLock()
+	defer s.connectionMu.RUnlock()
+
+	// avoid null connection
+	if s.connection == nil {
+		return fmt.Errorf("socket null connection")
+	}
+
+	_, err := s.connection.Write(b)
+
+	return err
+}
+
 func (s *Socket) Open() error {
 	err := s.openListener()
 	if err != nil {
@@ -212,4 +265,16 @@ func (s *Socket) Close() {
 	}
 
 	s.wg.Wait()
+}
+
+func (s *Socket) Send(header [8]uint32, body []byte) error {
+	return s.send(header, body)
+}
+
+func (s *Socket) SendHeader(header [8]uint32) error {
+	return s.send(header, nil)
+}
+
+func (s *Socket) SendBody(body []byte) error {
+	return s.send([8]uint32{}, body)
 }
