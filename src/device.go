@@ -455,3 +455,18 @@ func (d *Device) loop() {
 		time.Sleep(3 * time.Second)
 	}
 }
+
+func (d *Device) sendWOL() error {
+	if d.cf.config.WakeOnLanMac == "" {
+		return fmt.Errorf("device wake on lan mac is empty")
+	}
+
+	return SendWOL(d.cf.config.WakeOnLanMac)
+}
+
+func (d *Device) SendWol() {
+	err := d.sendWOL()
+	if err != nil {
+		log.Println("device send wol error", err)
+	}
+}

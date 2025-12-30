@@ -8,12 +8,14 @@ import (
 )
 
 type Config struct {
-	ID string
+	ID string `json:"id"`
 
 	AccessToken           string    `json:"accessToken"`
 	AccessTokenExpiresAt  time.Time `json:"accessTokenExpiresAt"`
 	RefreshToken          string    `json:"refreshToken"`
 	RefreshTokenExpiresAt time.Time `json:"refreshTokenExpiresAt"`
+
+	WakeOnLanMac string `json:"wakeOnLanMac"`
 }
 
 type ConfigFile struct {
