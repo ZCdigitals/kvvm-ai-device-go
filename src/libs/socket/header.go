@@ -42,3 +42,20 @@ func ParseSocketHeader(b []byte) SocketHeader {
 		Reserved:  reserved,
 	}
 }
+
+// ToBytes converts SocketHeader to byte slice
+func (h *SocketHeader) ToBytes() []byte {
+	b := make([]byte, SocketHeaderLength)
+
+	binary.LittleEndian.PutUint32(b[0:4], h.ID)
+	binary.LittleEndian.PutUint32(b[4:8], h.Size)
+	binary.LittleEndian.PutUint64(b[8:16], h.Timestamp)
+
+	offset := 16
+	for i := 0; i < 8; i++ {
+		binary.LittleEndian.PutUint32(b[offset:offset+4], h.Reserved[i])
+		offset += 4
+	}
+
+	return b
+}
