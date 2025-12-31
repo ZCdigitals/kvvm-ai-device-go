@@ -58,3 +58,17 @@ func UnmarshalDeviceMessage(data []byte) (DeviceMessage, error) {
 
 	return m, err
 }
+
+type DeviceMessageIceServer struct {
+	Credential string   `json:"credential"`
+	Urls       []string `json:"urls"`
+	Username   string   `json:"username"`
+}
+
+func (iceServer *DeviceMessageIceServer) ToWebrtcIceServer() webrtc.ICEServer {
+	return webrtc.ICEServer{
+		URLs:       iceServer.Urls,
+		Username:   iceServer.Username,
+		Credential: iceServer.Credential,
+	}
+}

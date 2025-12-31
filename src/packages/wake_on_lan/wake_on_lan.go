@@ -1,4 +1,4 @@
-package src
+package wake_on_lan
 
 import (
 	"encoding/hex"

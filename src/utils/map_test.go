@@ -1,5 +1,4 @@
-// utils_test.go
-package src
+package utils
 
 import (
 	"strconv"
@@ -97,76 +96,6 @@ func TestMap(t *testing.T) {
 	})
 }
 
-func TestBoolsToInt(t *testing.T) {
-	testCases := []struct {
-		name     string
-		input    []bool
-		expected int
-	}{
-		{
-			name:     "single true",
-			input:    []bool{true},
-			expected: 1,
-		},
-		{
-			name:     "single false",
-			input:    []bool{false},
-			expected: 0,
-		},
-		{
-			name:     "multiple true values",
-			input:    []bool{true, false, true},
-			expected: 1<<0 | 1<<2, // 1 + 4 = 5
-		},
-		{
-			name:     "all true",
-			input:    []bool{true, true, true},
-			expected: 1<<0 | 1<<1 | 1<<2, // 1 + 2 + 4 = 7
-		},
-		{
-			name:     "all false",
-			input:    []bool{false, false, false},
-			expected: 0,
-		},
-		{
-			name:     "mixed values complex",
-			input:    []bool{true, false, false, true, false, true},
-			expected: 1<<0 | 1<<3 | 1<<5, // 1 + 8 + 32 = 41
-		},
-		{
-			name:     "empty input",
-			input:    []bool{},
-			expected: 0,
-		},
-		{
-			name:     "position based - first bit",
-			input:    []bool{true, false, false, false},
-			expected: 1,
-		},
-		{
-			name:     "position based - second bit",
-			input:    []bool{false, true, false, false},
-			expected: 2,
-		},
-		{
-			name:     "position based - third bit",
-			input:    []bool{false, false, true, false},
-			expected: 4,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			result := BoolsToInt(tc.input...)
-			if result != tc.expected {
-				t.Errorf("BoolsToInt(%v) = %d; expected %d",
-					tc.input, result, tc.expected)
-			}
-		})
-	}
-}
-
-// 基准测试
 func BenchmarkMap(b *testing.B) {
 	input := make([]int, 1000)
 	for i := range input {
@@ -178,31 +107,4 @@ func BenchmarkMap(b *testing.B) {
 			return n * 2
 		})
 	}
-}
-
-func BenchmarkBoolsToInt(b *testing.B) {
-	boolSlice := []bool{true, false, true, false, true, true, false, true}
-
-	for b.Loop() {
-		BoolsToInt(boolSlice...)
-	}
-}
-
-// 示例测试
-func ExampleMap() {
-	numbers := []int{1, 2, 3, 4, 5}
-	result := Map(numbers, func(n int) string {
-		return strconv.Itoa(n)
-	})
-
-	for _, s := range result {
-		println(s)
-	}
-	// Output would be strings "1", "2", "3", "4", "5"
-}
-
-func ExampleBoolsToInt() {
-	result := BoolsToInt(true, false, true)
-	println(result) // 1 (bit 0) + 4 (bit 2) = 5
-	// Output: 5
 }

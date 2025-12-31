@@ -1,73 +1,75 @@
-package src
+package mqtt
 
 import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net/url"
+	URL "net/url"
 	"time"
 
-	MQTT "github.com/eclipse/paho.mqtt.golang"
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
 type MqttOnRequest func(payload []byte)
 
 type Mqtt struct {
-	id  string
-	url string
+	id string
 
-	client MQTT.Client
+	client mqtt.Client
 
-	onRequest MqttOnRequest
+	OnRequest MqttOnRequest
 }
 
-func (c *Mqtt) openClient() error {
+func NewMqtt(id string, url string) Mqtt {
 	// options
-	o := MQTT.NewClientOptions()
+	o := mqtt.NewClientOptions()
 
-	uu, err := url.Parse(c.url)
+	uu, err := URL.Parse(url)
 	if err != nil {
-		log.Println("mqtt url parse error", err)
-		return err
+		log.Fatalln("mqtt url parse error", err)
 	}
 
 	up, upe := uu.User.Password()
 
-	// set server props
-	var b string
-	if uu.Scheme == "mqtts" {
-		b = fmt.Sprintf("ssl://%s:%s", uu.Hostname(), uu.Port())
-	} else {
-		b = fmt.Sprintf("tcp://%s:%s", uu.Hostname(), uu.Port())
+	// set props
+	switch uu.Scheme {
+	case "mqtts":
+		o.AddBroker(fmt.Sprintf("ssl://%s:%s", uu.Hostname(), uu.Port()))
+		break
+	case "mqtt":
+		o.AddBroker(fmt.Sprintf("tcp://%s:%s", uu.Hostname(), uu.Port()))
+		break
+	default:
+		log.Fatalln("mqtt unknown url schema %s", uu.Scheme)
 	}
-	o.AddBroker(b)
-	o.SetClientID(fmt.Sprintf("device-%s", c.id))
+	o.SetClientID(fmt.Sprintf("device-%s", id))
 	o.SetUsername(uu.User.Username())
 	if upe {
 		o.SetPassword(up)
 	}
 
 	// set callback
-	o.OnConnect = func(client MQTT.Client) {
+	o.OnConnect = func(client mqtt.Client) {
 		log.Println("mqtt connected")
 	}
-	o.OnConnectionLost = func(client MQTT.Client, err error) {
+	o.OnConnectionLost = func(client mqtt.Client, err error) {
 		log.Println("mqtt connections lost", err)
 	}
 
-	// create client
-	c.client = MQTT.NewClient(o)
+	return Mqtt{
+		id:     id,
+		client: mqtt.NewClient(o),
+	}
+}
 
-	// connect
+func (c *Mqtt) openClient() error {
 	token := c.client.Connect()
 	token.Wait()
-	err = token.Error()
-	if err != nil {
-		log.Println("mqtt connect error", err)
-		return err
-	}
+	return token.Error()
+}
 
-	return nil
+func (c *Mqtt) closeClient() {
+	c.client.Disconnect(250)
 }
 
 func (c *Mqtt) useTopic(prop string) string {
@@ -77,31 +79,18 @@ func (c *Mqtt) useTopic(prop string) string {
 func (c *Mqtt) publish(prop string, message any) error {
 	j, err := json.Marshal(message)
 	if err != nil {
-		log.Println("mqtt json marshal error", err)
 		return err
 	}
 
 	token := c.client.Publish(c.useTopic(prop), 0, false, j)
 	token.Wait()
-	err = token.Error()
-	if err != nil {
-		log.Println("mqtt publish error", err)
-		return err
-	}
-
-	return nil
+	return token.Error()
 }
 
-func (c *Mqtt) subscribe(prop string, cb MQTT.MessageHandler) error {
+func (c *Mqtt) subscribe(prop string, cb mqtt.MessageHandler) error {
 	token := c.client.Subscribe(c.useTopic(prop), 1, cb)
 	token.Wait()
-	err := token.Error()
-	if err != nil {
-		log.Println("mqtt subscribe error", err)
-		return err
-	}
-
-	return nil
+	return token.Error()
 }
 
 type MqttMessage struct {
@@ -135,9 +124,9 @@ func (c *Mqtt) publishHeartbeat() error {
 func (c *Mqtt) subscribeRequest() error {
 	return c.subscribe(
 		"request",
-		func(cc MQTT.Client, msg MQTT.Message) {
-			if c.onRequest != nil {
-				c.onRequest(msg.Payload())
+		func(cc mqtt.Client, msg mqtt.Message) {
+			if c.OnRequest != nil {
+				c.OnRequest(msg.Payload())
 			}
 		},
 	)
@@ -155,21 +144,30 @@ func (c *Mqtt) Open() error {
 
 	err = c.subscribeRequest()
 	if err != nil {
+		c.closeClient()
 		return err
 	}
-	err = c.publishHeartbeat()
 
-	return err
+	err = c.publishHeartbeat()
+	if err != nil {
+		c.closeClient()
+		return err
+	}
+
+	return nil
 }
 
 func (c *Mqtt) Close() {
 	// send offline
 	c.publishOffline()
 
-	// disconnect
-	c.client.Disconnect(250)
+	c.closeClient()
 }
 
 func (c *Mqtt) Send(data any) error {
 	return c.publishResponse(data)
+}
+
+func (c *Mqtt) IsConnected() bool {
+	return c.client.IsConnected()
 }

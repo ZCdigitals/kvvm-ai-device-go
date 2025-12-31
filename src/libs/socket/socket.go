@@ -84,7 +84,6 @@ func (s *Socket) openConnection(ctx context.Context) error {
 	}
 	s.connection = c
 
-	s.wg.Add(1)
 	go s.handle(ctx)
 
 	return nil
@@ -107,6 +106,7 @@ func (s *Socket) closeConnection() error {
 }
 
 func (s *Socket) handle(ctx context.Context) {
+	s.wg.Add(1)
 	defer func() {
 		s.closeConnection()
 		s.closeListener()

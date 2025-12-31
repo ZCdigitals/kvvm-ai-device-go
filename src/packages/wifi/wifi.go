@@ -1,4 +1,4 @@
-package src
+package wifi
 
 import (
 	"log"

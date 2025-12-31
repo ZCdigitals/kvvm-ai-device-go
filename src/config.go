@@ -21,7 +21,7 @@ type Config struct {
 type ConfigFile struct {
 	path string
 
-	config Config
+	Config Config
 }
 
 func (cf *ConfigFile) Load() error {
@@ -40,13 +40,13 @@ func (cf *ConfigFile) Load() error {
 		return err
 	}
 
-	cf.config = config
+	cf.Config = config
 
 	return nil
 }
 
 func (cf *ConfigFile) Save() error {
-	data, err := json.MarshalIndent(cf.config, "", "  ")
+	data, err := json.MarshalIndent(cf.Config, "", "  ")
 	if err != nil {
 		return err
 	}

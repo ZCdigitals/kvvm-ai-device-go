@@ -1,6 +1,7 @@
 package src
 
 import (
+	"device-go/src/packages/wifi"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -510,7 +511,7 @@ func (f *Front) SendStatus(
 	systemOnline bool,
 	hdmiConnected bool,
 	usbConnected bool,
-	wifiStatus WifiStatus,
+	wifiStatus wifi.WifiStatus,
 ) error {
 	ms := FrontMessageStatus{
 		system: frontMessageStatusSystemUnknown,

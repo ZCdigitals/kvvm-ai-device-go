@@ -1,13 +1,15 @@
-package src
+package apis
 
 import (
 	"bytes"
+	"device-go/src/libs/websocket"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 )
 
@@ -24,6 +26,11 @@ type ServeApi struct {
 	accessTokenExpiresAt  time.Time
 	refreshToken          string
 	refreshTokenExpiresAt time.Time
+	tokenMu               sync.RWMutex
+}
+
+func NewServeApi(url string) ServeApi {
+	return ServeApi{baseUrl: url}
 }
 
 func (api *ServeApi) buildUrl(path string, query url.Values) (*url.URL, error) {
@@ -41,6 +48,9 @@ func (api *ServeApi) buildUrl(path string, query url.Values) (*url.URL, error) {
 }
 
 func (api *ServeApi) buildHeader(contentType string) http.Header {
+	api.tokenMu.RLock()
+	defer api.tokenMu.RUnlock()
+
 	h := http.Header{}
 
 	// use access token
@@ -158,21 +168,40 @@ type PostOAuthTokenCodeRes struct {
 	Data *PostOAuthTokenCodeResData `json:"data,omitempty"`
 }
 
-func (api *ServeApi) useOAuthTokenRes(res PostOAuthTokenCodeRes) error {
-	data := res.Data
-	if data == nil {
-		return fmt.Errorf("serve api oauth token res data is null")
+func (api *ServeApi) GetAccessToken() (string, error) {
+	api.tokenMu.RLock()
+	defer api.tokenMu.RUnlock()
+
+	n := time.Now()
+	if api.accessToken != "" && api.accessTokenExpiresAt.After(n) {
+		return api.accessToken, nil
+	} else if api.refreshToken != "" && api.refreshTokenExpiresAt.After(n) {
+		err := api.PostOAuthTokenRefreshToken(api.refreshToken)
+		if err != nil {
+			return "", err
+		}
+		return api.accessToken, nil
 	}
 
-	api.accessToken = data.AccessToken
-	api.accessTokenExpiresAt = data.AccessTokenExpiresAt
+	return "", fmt.Errorf("serve api oauth token null auth")
+}
 
-	if data.RefreshToken != "" {
-		api.refreshToken = data.RefreshToken
-		api.refreshTokenExpiresAt = data.RefreshTokenExpiresAt
+func (api *ServeApi) SetOAuthToken(
+	accessToken string,
+	accessTokenExpiresAt time.Time,
+	refreshToken string,
+	refreshTokenExpiresAt time.Time,
+) {
+	api.tokenMu.Lock()
+	defer api.tokenMu.Unlock()
+
+	api.accessToken = accessToken
+	api.accessTokenExpiresAt = accessTokenExpiresAt
+
+	if refreshToken != "" {
+		api.refreshToken = refreshToken
+		api.refreshTokenExpiresAt = refreshTokenExpiresAt
 	}
-
-	return nil
 }
 
 func (api *ServeApi) PostOAuthTokenCode(code string, state string) error {
@@ -197,7 +226,9 @@ func (api *ServeApi) PostOAuthTokenCode(code string, state string) error {
 		return err
 	}
 
-	return api.useOAuthTokenRes(data)
+	api.SetOAuthToken(data.Data.AccessToken, data.Data.AccessTokenExpiresAt, data.Data.RefreshToken, data.Data.RefreshTokenExpiresAt)
+
+	return nil
 }
 
 func (api *ServeApi) PostOAuthTokenRefreshToken(refreshToken string) error {
@@ -212,8 +243,7 @@ func (api *ServeApi) PostOAuthTokenRefreshToken(refreshToken string) error {
 	)
 
 	if err != nil {
-		api.accessToken = ""
-		api.refreshToken = ""
+		api.SetOAuthToken("", time.Time{}, "", time.Time{})
 		return err
 	}
 
@@ -223,25 +253,12 @@ func (api *ServeApi) PostOAuthTokenRefreshToken(refreshToken string) error {
 		return err
 	}
 
-	return api.useOAuthTokenRes(data)
+	api.SetOAuthToken(data.Data.AccessToken, data.Data.AccessTokenExpiresAt, data.Data.RefreshToken, data.Data.RefreshTokenExpiresAt)
+
+	return nil
 }
 
-func (api *ServeApi) UseAccessToken() (string, error) {
-	n := time.Now()
-	if api.accessToken != "" && api.accessTokenExpiresAt.After(n) {
-		return api.accessToken, nil
-	} else if api.refreshToken != "" && api.refreshTokenExpiresAt.After(n) {
-		err := api.PostOAuthTokenRefreshToken(api.refreshToken)
-		if err != nil {
-			return "", err
-		}
-		return api.accessToken, nil
-	}
-
-	return "", fmt.Errorf("serve api oauth token null auth")
-}
-
-func (api *ServeApi) UseDeviceResponse(id string) (*WebSocket, error) {
+func (api *ServeApi) UseDeviceResponse(id string) (*websocket.WebSocket, error) {
 	u, err := api.buildUrl(
 		fmt.Sprintf("/ws/device/%s/response", id),
 		url.Values{},
@@ -250,15 +267,17 @@ func (api *ServeApi) UseDeviceResponse(id string) (*WebSocket, error) {
 		return nil, err
 	}
 
-	ws := WebSocket{
-		url:         u.String(),
-		accessToken: api.accessToken,
+	accessToken, err := api.GetAccessToken()
+	if err != nil {
+		return nil, err
 	}
+
+	ws := websocket.NewWebSocket(u.String(), accessToken)
 
 	return &ws, nil
 }
 
-func (api *ServeApi) UseDeviceSTT(id string) (*WebSocket, error) {
+func (api *ServeApi) UseDeviceSTT(id string) (*websocket.WebSocket, error) {
 	u, err := api.buildUrl(
 		fmt.Sprintf("/ws/device/%s/stt", id),
 		url.Values{},
@@ -267,10 +286,12 @@ func (api *ServeApi) UseDeviceSTT(id string) (*WebSocket, error) {
 		return nil, err
 	}
 
-	ws := WebSocket{
-		url:         u.String(),
-		accessToken: api.accessToken,
+	accessToken, err := api.GetAccessToken()
+	if err != nil {
+		return nil, err
 	}
+
+	ws := websocket.NewWebSocket(u.String(), accessToken)
 
 	return &ws, nil
 }

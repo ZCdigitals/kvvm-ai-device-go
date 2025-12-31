@@ -2,7 +2,6 @@ package websocket
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -10,6 +9,14 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+)
+
+const (
+	TextMessage   = websocket.TextMessage
+	BinaryMessage = websocket.BinaryMessage
+	CloseMessage  = websocket.CloseMessage
+	PingMessage   = websocket.PingMessage
+	PongMessage   = websocket.PongMessage
 )
 
 type WebSocketOnMessage func(messageType int, message []byte)
@@ -78,6 +85,7 @@ func (ws *WebSocket) closeConnection() error {
 }
 
 func (ws *WebSocket) handle(ctx context.Context) {
+	ws.wg.Add(1)
 	defer func() {
 		ws.closeConnection()
 		ws.wg.Done()
@@ -110,8 +118,16 @@ func (ws *WebSocket) read() error {
 		return err
 	}
 
-	if ws.OnMessage != nil {
-		ws.OnMessage(t, msg)
+	switch t {
+	case TextMessage:
+	case BinaryMessage:
+		if ws.OnMessage != nil {
+			ws.OnMessage(t, msg)
+		}
+		break
+	case PingMessage:
+		ws.connection.WriteMessage(PongMessage, msg)
+		break
 	}
 
 	return nil
@@ -125,7 +141,6 @@ func (ws *WebSocket) Open() error {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	ws.cancel = cancel
-	ws.wg.Add(1)
 
 	go ws.handle(ctx)
 
@@ -153,11 +168,16 @@ func (ws *WebSocket) Send(message any) error {
 		return fmt.Errorf("websocket connection is null")
 	}
 
-	j, err := json.Marshal(message)
-	if err != nil {
-		log.Println("websocket json marshal error", err)
-		return err
+	return ws.connection.WriteJSON(message)
+}
+
+func (ws *WebSocket) SendBinary(b []byte) error {
+	ws.connectionMu.RLock()
+	defer ws.connectionMu.RUnlock()
+
+	if ws.connection == nil {
+		return fmt.Errorf("websocket connection is null")
 	}
 
-	return ws.connection.WriteMessage(websocket.TextMessage, j)
+	return ws.connection.WriteMessage(websocket.BinaryMessage, b)
 }
