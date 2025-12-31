@@ -12,6 +12,7 @@ import (
 	"device-go/src/apis"
 	"device-go/src/libs/webrtc"
 	"device-go/src/libs/websocket"
+	"device-go/src/packages/front"
 	"device-go/src/packages/gstreamer"
 	"device-go/src/packages/hid"
 	"device-go/src/packages/mqtt"
@@ -51,7 +52,7 @@ type Device struct {
 	mg              *gstreamer.Gstreamer
 	vm              video.VideoMonitor
 	hid             hid.HidController
-	front           Front
+	front           front.Front
 }
 
 func NewDevice(args Args) Device {
@@ -78,10 +79,11 @@ func NewDevice(args Args) Device {
 			args.VideoMonitorBinPath,
 			args.VideoMonitorSocketPath,
 		),
-		front: Front{
-			binPath:    args.FrontBinPath,
-			socketPath: args.FrontSocketPath,
-		},
+		front: front.NewFront(
+			args.FrontBinPath,
+			args.FrontSocketPath,
+			Version,
+		),
 	}
 }
 

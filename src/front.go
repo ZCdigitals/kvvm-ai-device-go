@@ -1,7 +1,6 @@
 package src
 
 import (
-	"device-go/src/packages/wifi"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -11,6 +10,8 @@ import (
 	"os/exec"
 	"sync/atomic"
 	"time"
+
+	"device-go/src/packages/wifi"
 )
 
 const (

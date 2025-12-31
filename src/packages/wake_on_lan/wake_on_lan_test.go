@@ -1,8 +1,6 @@
 package wake_on_lan
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestMagicPacket(t *testing.T) {
 	t.Run("create magic packet", func(t *testing.T) {

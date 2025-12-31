@@ -2,7 +2,6 @@ package apis
 
 import (
 	"bytes"
-	"device-go/src/libs/websocket"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +10,8 @@ import (
 	"net/url"
 	"sync"
 	"time"
+
+	"device-go/src/libs/websocket"
 )
 
 type ServeApi struct {

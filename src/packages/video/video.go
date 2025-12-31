@@ -1,9 +1,10 @@
 package video
 
 import (
+	"strconv"
+
 	"device-go/src/libs/exec"
 	"device-go/src/libs/socket"
-	"strconv"
 )
 
 type VideoOnData func(id uint32, timestamp uint64, frame []byte)
