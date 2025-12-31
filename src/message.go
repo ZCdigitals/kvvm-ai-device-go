@@ -8,22 +8,20 @@ import (
 	"github.com/pion/webrtc/v4"
 )
 
-type DeviceMessageType string
-
 const (
-	WebSocketStart     DeviceMessageType = "websocket-start"
-	WebSocketStop      DeviceMessageType = "websocket-stop"
-	WebRTCStart        DeviceMessageType = "webrtc-start"
-	WebRTCStop         DeviceMessageType = "webrtc-stop"
-	WebRTCIceCandidate DeviceMessageType = "webrtc-ice-candidate"
-	WebRTCOffer        DeviceMessageType = "webrtc-offer"
-	WebRTCAnswer       DeviceMessageType = "webrtc-answer"
-	Error              DeviceMessageType = "error"
+	WebSocketStart     string = "websocket-start"
+	WebSocketStop      string = "websocket-stop"
+	WebRTCStart        string = "webrtc-start"
+	WebRTCStop         string = "webrtc-stop"
+	WebRTCIceCandidate string = "webrtc-ice-candidate"
+	WebRTCOffer        string = "webrtc-offer"
+	WebRTCAnswer       string = "webrtc-answer"
+	Error              string = "error"
 )
 
 type DeviceMessage struct {
-	Time int64             `json:"time"`
-	Type DeviceMessageType `json:"type"`
+	Time int64  `json:"time"`
+	Type string `json:"type"`
 
 	// webrtc start
 	IceServers []DeviceMessageIceServer `json:"iceServers,omitempty"`
@@ -39,7 +37,7 @@ type DeviceMessage struct {
 	Answer *webrtc.SessionDescription `json:"answer,omitempty"`
 }
 
-func NewDeviceMessage(t DeviceMessageType) DeviceMessage {
+func NewDeviceMessage(t string) DeviceMessage {
 	return DeviceMessage{
 		Time: time.Now().Unix(),
 		Type: t,

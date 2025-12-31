@@ -3,6 +3,7 @@ package main
 
 import (
 	"device-go/src"
+	"flag"
 	"log"
 	"os"
 	"os/signal"
@@ -16,6 +17,7 @@ func main() {
 		log.Println(src.VersionLong())
 		return
 	} else if args.Help {
+		flag.Usage()
 		return
 	}
 

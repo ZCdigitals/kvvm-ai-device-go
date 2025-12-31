@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -62,7 +63,7 @@ func NewDevice(args Args) Device {
 		},
 
 		// signal resources
-		api:     apis.NewServeApi(args.ServeUrl),
+		api:     apis.NewServeApi(args.ServeUrl, args.ServeClientId),
 		mqttUrl: args.MqttUrl,
 
 		// device resources
@@ -98,6 +99,7 @@ func (d *Device) wrtcStart(msg DeviceMessage) error {
 		OnIceCandidate: d.sendIceCandidate,
 		OnDataChannel:  d.useDataChannel,
 		OnClose: func() {
+			log.Println("device webrtc close")
 			d.wsStop()
 			d.mediaStop()
 			d.hid.Close()
@@ -261,10 +263,19 @@ func (d *Device) wsStart() error {
 		return err
 	}
 
+	ws.OnMessage = func(messageType int, message []byte) {
+		m := d.handleWsMessage(message)
+		ws.Send(m)
+	}
+
 	err = ws.Open()
 	if err != nil {
 		return err
 	}
+	log.Println("device ws open")
+
+	// send first message
+	ws.Send(NewDeviceMessage(""))
 
 	d.responseWs = ws
 
@@ -304,7 +315,12 @@ func (d *Device) sendStatus() {
 	// 	},
 	// )
 
-	log.Println("status", d.mqtt.IsConnected(), d.vm.IsConnected, d.hid.ReadStatus())
+	mqttIsConnected := false
+	if d.mqtt != nil {
+		mqttIsConnected = d.mqtt.IsConnected()
+	}
+
+	log.Println("status", mqttIsConnected, d.vm.IsConnected, d.hid.ReadStatus())
 }
 
 func (d *Device) sendWOL() error {
@@ -318,6 +334,7 @@ func (d *Device) sendWOL() error {
 // handle mqtt message
 func (d *Device) handleMqttMessage(msg []byte) DeviceMessage {
 	m, err := UnmarshalDeviceMessage(msg)
+	log.Println("device mqtt request", m.Type)
 
 	if err != nil {
 		return NewDeviceMessage(Error)
@@ -326,16 +343,23 @@ func (d *Device) handleMqttMessage(msg []byte) DeviceMessage {
 	switch m.Type {
 	case WebSocketStart:
 		{
-			d.wsStart()
+			err = d.wsStart()
+			if err != nil {
+				log.Println("device ws start error", err)
+				return NewDeviceMessage(Error)
+			}
 			return NewDeviceMessage(WebSocketStart)
 		}
 	case WebSocketStop:
 		{
-			d.wsStop()
+			err = d.wsStop()
+			if err != nil {
+				log.Println("device ws stop error", err)
+				return NewDeviceMessage(Error)
+			}
 			return NewDeviceMessage(WebSocketStop)
 		}
-	case Error:
-	case "":
+	case Error, "":
 		{
 			return NewDeviceMessage("")
 		}
@@ -345,13 +369,12 @@ func (d *Device) handleMqttMessage(msg []byte) DeviceMessage {
 			return NewDeviceMessage(Error)
 		}
 	}
-
-	return NewDeviceMessage("")
 }
 
 // handle ws message
 func (d *Device) handleWsMessage(msg []byte) DeviceMessage {
 	m, err := UnmarshalDeviceMessage(msg)
+	log.Println("device ws message", m.Type)
 
 	if err != nil {
 		return NewDeviceMessage(Error)
@@ -360,12 +383,20 @@ func (d *Device) handleWsMessage(msg []byte) DeviceMessage {
 	switch m.Type {
 	case WebRTCStart:
 		{
-			d.wrtcStart(m)
+			err = d.wrtcStart(m)
+			if err != nil {
+				log.Println("device wrtc start error", err)
+				return NewDeviceMessage(Error)
+			}
 			return NewDeviceMessage(WebRTCStart)
 		}
 	case WebRTCStop:
 		{
-			d.wrtcStop()
+			err = d.wrtcStop()
+			if err != nil {
+				log.Println("device wrtc stop error", err)
+				return NewDeviceMessage(Error)
+			}
 			return NewDeviceMessage(WebRTCStop)
 		}
 	case WebRTCIceCandidate:
@@ -374,7 +405,11 @@ func (d *Device) handleWsMessage(msg []byte) DeviceMessage {
 				return NewDeviceMessage(Error)
 			}
 
-			d.wrtc.AddIceCandidate(m.IceCandidate)
+			err = d.wrtc.AddIceCandidate(m.IceCandidate)
+			if err != nil {
+				log.Println("device wrtc add ice candidtae error", err)
+				return NewDeviceMessage(Error)
+			}
 			return NewDeviceMessage(WebRTCIceCandidate)
 		}
 	case WebRTCOffer:
@@ -386,14 +421,14 @@ func (d *Device) handleWsMessage(msg []byte) DeviceMessage {
 			mm := NewDeviceMessage(WebRTCAnswer)
 			answer, err := d.wrtc.UseOffer(m.Offer)
 			if err != nil {
+				log.Println("device wrtc use offer error", err)
 				return NewDeviceMessage(Error)
 			}
 
 			mm.Answer = answer
 			return mm
 		}
-	case Error:
-	case "":
+	case Error, "":
 		{
 			return NewDeviceMessage("")
 		}
@@ -403,8 +438,6 @@ func (d *Device) handleWsMessage(msg []byte) DeviceMessage {
 			return NewDeviceMessage(Error)
 		}
 	}
-
-	return NewDeviceMessage("")
 }
 
 func (d *Device) loop(ctx context.Context) {
@@ -429,7 +462,15 @@ func (d *Device) loop(ctx context.Context) {
 // open
 func (d *Device) Open() {
 	// load config
-	d.cf.Load()
+	err := d.cf.Load()
+	if os.IsNotExist(err) {
+		err = d.cf.Save()
+		if err != nil {
+			log.Println("device config save error", err)
+		}
+	} else if err != nil {
+		log.Println("device config load error", err)
+	}
 
 	// set api auth
 	d.api.SetOAuthToken(
@@ -438,6 +479,16 @@ func (d *Device) Open() {
 		d.cf.Config.RefreshToken,
 		d.cf.Config.RefreshTokenExpiresAt,
 	)
+	d.api.OnUpdateToken = func(accessToken string, accessTokenExpiresAt time.Time, refreshToken string, refreshTokenExpiresAt time.Time) {
+		d.cf.Config.AccessToken = accessToken
+		d.cf.Config.AccessTokenExpiresAt = accessTokenExpiresAt
+		d.cf.Config.RefreshToken = refreshToken
+		d.cf.Config.RefreshTokenExpiresAt = refreshTokenExpiresAt
+		err := d.cf.Save()
+		if err != nil {
+			log.Println("device config save error", err)
+		}
+	}
 
 	// if id exists, use mqtt
 	if d.cf.Config.ID != "" {
@@ -446,8 +497,12 @@ func (d *Device) Open() {
 			m := d.handleMqttMessage(msg)
 			d.mqtt.Send(m)
 		}
-		mqtt.Open()
-		d.mqtt = &mqtt
+		err = mqtt.Open()
+		if err != nil {
+			log.Println("device mqtt open error", err)
+		} else {
+			d.mqtt = &mqtt
+		}
 	}
 
 	// err := d.front.Open()
@@ -455,13 +510,16 @@ func (d *Device) Open() {
 	// 	log.Printf("device front open error %v\n", err)
 	// }
 
-	d.vm.Open()
+	err = d.vm.Open()
+	if err != nil {
+		log.Println("device video monitor open error", err)
+	}
 
 	// start
-	ctx, cancel := context.WithCancel(context.Background())
-	d.cancel = cancel
+	// ctx, cancel := context.WithCancel(context.Background())
+	// d.cancel = cancel
 
-	go d.loop(ctx)
+	// go d.loop(ctx)
 }
 
 // close

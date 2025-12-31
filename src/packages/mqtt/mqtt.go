@@ -77,6 +77,8 @@ func (c *Mqtt) useTopic(prop string) string {
 }
 
 func (c *Mqtt) publish(prop string, message any) error {
+	log.Println("mqtt publish", prop, message)
+
 	j, err := json.Marshal(message)
 	if err != nil {
 		return err

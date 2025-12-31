@@ -101,7 +101,7 @@ func (u *UDP) handle(ctx context.Context) {
 				if err == io.EOF {
 					return
 				} else if err != nil {
-					log.Println("udp read error", err)
+					log.Println("udp read error", u.ip, err)
 				}
 
 				if u.OnData != nil {

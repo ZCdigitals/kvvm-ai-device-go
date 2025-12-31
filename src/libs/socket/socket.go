@@ -125,7 +125,7 @@ func (s *Socket) handle(ctx context.Context) {
 				// read header
 				err := s.read(ctx, hb)
 				if err != nil {
-					log.Println("socket read header error", err)
+					log.Println("socket read header error", s.path, err)
 					return
 				}
 
@@ -144,7 +144,7 @@ func (s *Socket) handle(ctx context.Context) {
 				// read body
 				err = s.read(ctx, body)
 				if err != nil {
-					log.Println("socket read body error", err)
+					log.Println("socket read body error", s.path, err)
 					return
 				}
 

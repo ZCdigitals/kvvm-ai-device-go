@@ -3,12 +3,12 @@ package src
 import (
 	"flag"
 	"log"
-	"os"
 )
 
 type Args struct {
-	ServeUrl string
-	MqttUrl  string
+	ServeUrl      string
+	ServeClientId string
+	MqttUrl       string
 
 	ConfigPath string
 
@@ -39,6 +39,7 @@ type Args struct {
 
 func ParseArgs() Args {
 	var serveUrl string
+	var serveClientId string
 	var mqttUrl string
 
 	var configPath string
@@ -67,6 +68,7 @@ func ParseArgs() Args {
 	var help bool
 
 	flag.StringVar(&serveUrl, "serve-url", "", "Server url")
+	flag.StringVar(&serveClientId, "serve-client-id", "", "Server oauth client id")
 	flag.StringVar(&mqttUrl, "mqtt-url", "", "Mqtt broker url")
 
 	flag.StringVar(&configPath, "config-path", "/etc/kvvm-ai", "Config file path")
@@ -94,25 +96,24 @@ func ParseArgs() Args {
 	flag.BoolVar(&version, "version", false, "Print version")
 	flag.BoolVar(&help, "help", false, "Print help")
 
-	flag.Usage = func() {
-		log.Println("Usage of", os.Args[0])
-		flag.PrintDefaults()
-		help = true
-	}
-
 	// parse
 	flag.Parse()
 
-	// valid args
-	if mqttUrl == "" {
-		log.Fatalln("Mqtt url is required")
-	} else if serveUrl == "" {
-		log.Fatalln("Server url is required")
+	if !help && !version {
+		// valid args
+		if mqttUrl == "" {
+			log.Fatalln("Mqtt url is required")
+		} else if serveUrl == "" {
+			log.Fatalln("Server url is required")
+		} else if serveClientId == "" {
+			log.Fatalln("Server oauth client id is required")
+		}
 	}
 
 	return Args{
-		ServeUrl: serveUrl,
-		MqttUrl:  mqttUrl,
+		ServeUrl:      serveUrl,
+		ServeClientId: serveClientId,
+		MqttUrl:       mqttUrl,
 
 		ConfigPath: configPath,
 

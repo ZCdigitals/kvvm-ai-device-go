@@ -2,7 +2,6 @@ package src
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"time"
 )
@@ -25,8 +24,9 @@ type ConfigFile struct {
 }
 
 func (cf *ConfigFile) Load() error {
-	if _, err := os.Stat(cf.path); os.IsNotExist(err) {
-		return fmt.Errorf("config file not exists %s", cf.path)
+	_, err := os.Stat(cf.path)
+	if err != nil {
+		return err
 	}
 
 	data, err := os.ReadFile(cf.path)

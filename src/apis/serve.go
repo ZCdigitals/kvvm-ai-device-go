@@ -14,6 +14,13 @@ import (
 	"device-go/src/libs/websocket"
 )
 
+type ServeApiOnUpdateToken func(
+	accessToken string,
+	accessTokenExpiresAt time.Time,
+	refreshToken string,
+	refreshTokenExpiresAt time.Time,
+)
+
 type ServeApi struct {
 	// client
 	client http.Client
@@ -28,10 +35,12 @@ type ServeApi struct {
 	refreshToken          string
 	refreshTokenExpiresAt time.Time
 	tokenMu               sync.RWMutex
+
+	OnUpdateToken ServeApiOnUpdateToken
 }
 
-func NewServeApi(url string) ServeApi {
-	return ServeApi{baseUrl: url}
+func NewServeApi(url string, clientId string) ServeApi {
+	return ServeApi{baseUrl: url, clientId: clientId}
 }
 
 func (api *ServeApi) buildUrl(path string, query url.Values) (*url.URL, error) {
@@ -150,7 +159,7 @@ func (api *ServeApi) postForm(path string, query url.Values, form url.Values) (i
 	}
 
 	// build header
-	req.Header = api.buildHeader("application/json")
+	req.Header = api.buildHeader("application/x-www-form-urlencoded")
 
 	// do http
 	return api.doRequest(req)
@@ -171,19 +180,23 @@ type PostOAuthTokenCodeRes struct {
 
 func (api *ServeApi) GetAccessToken() (string, error) {
 	api.tokenMu.RLock()
-	defer api.tokenMu.RUnlock()
 
 	n := time.Now()
 	if api.accessToken != "" && api.accessTokenExpiresAt.After(n) {
+		api.tokenMu.RUnlock()
 		return api.accessToken, nil
 	} else if api.refreshToken != "" && api.refreshTokenExpiresAt.After(n) {
+		api.tokenMu.RUnlock()
+
 		err := api.PostOAuthTokenRefreshToken(api.refreshToken)
 		if err != nil {
 			return "", err
 		}
+
 		return api.accessToken, nil
 	}
 
+	api.tokenMu.RUnlock()
 	return "", fmt.Errorf("serve api oauth token null auth")
 }
 
@@ -203,10 +216,15 @@ func (api *ServeApi) SetOAuthToken(
 		api.refreshToken = refreshToken
 		api.refreshTokenExpiresAt = refreshTokenExpiresAt
 	}
+
+	if api.OnUpdateToken != nil {
+		log.Println("serve api update token", accessToken, refreshToken)
+		api.OnUpdateToken(accessToken, accessTokenExpiresAt, refreshToken, refreshTokenExpiresAt)
+	}
 }
 
 func (api *ServeApi) PostOAuthTokenCode(code string, state string) error {
-	_, body, err := api.postForm(
+	status, body, err := api.postForm(
 		"/oauth/token",
 		url.Values{},
 		url.Values{
@@ -219,6 +237,8 @@ func (api *ServeApi) PostOAuthTokenCode(code string, state string) error {
 
 	if err != nil {
 		return err
+	} else if status != 200 {
+		return fmt.Errorf("serve api http error", status)
 	}
 
 	data := PostOAuthTokenCodeRes{}
@@ -233,7 +253,7 @@ func (api *ServeApi) PostOAuthTokenCode(code string, state string) error {
 }
 
 func (api *ServeApi) PostOAuthTokenRefreshToken(refreshToken string) error {
-	_, body, err := api.postForm(
+	status, body, err := api.postForm(
 		"/oauth/token",
 		url.Values{},
 		url.Values{
@@ -246,6 +266,8 @@ func (api *ServeApi) PostOAuthTokenRefreshToken(refreshToken string) error {
 	if err != nil {
 		api.SetOAuthToken("", time.Time{}, "", time.Time{})
 		return err
+	} else if status != 200 {
+		return fmt.Errorf("serve api http error", status)
 	}
 
 	data := PostOAuthTokenCodeRes{}
@@ -259,6 +281,23 @@ func (api *ServeApi) PostOAuthTokenRefreshToken(refreshToken string) error {
 	return nil
 }
 
+func useWsUrl(u *url.URL) *url.URL {
+	if u == nil {
+		return nil
+	}
+
+	switch u.Scheme {
+	case "https":
+		u.Scheme = "wss"
+	case "http":
+		u.Scheme = "ws"
+	default:
+		log.Fatalln("unknown url schema %s", u.Scheme)
+	}
+
+	return u
+}
+
 func (api *ServeApi) UseDeviceResponse(id string) (*websocket.WebSocket, error) {
 	u, err := api.buildUrl(
 		fmt.Sprintf("/ws/device/%s/response", id),
@@ -267,6 +306,8 @@ func (api *ServeApi) UseDeviceResponse(id string) (*websocket.WebSocket, error) 
 	if err != nil {
 		return nil, err
 	}
+
+	u = useWsUrl(u)
 
 	accessToken, err := api.GetAccessToken()
 	if err != nil {
@@ -286,6 +327,8 @@ func (api *ServeApi) UseDeviceSTT(id string) (*websocket.WebSocket, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	u = useWsUrl(u)
 
 	accessToken, err := api.GetAccessToken()
 	if err != nil {

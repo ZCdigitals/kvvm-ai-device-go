@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -71,6 +72,9 @@ func (ws *WebSocket) openConnection() error {
 }
 
 func (ws *WebSocket) closeConnection() error {
+	// set a short timeout, this will stop read
+	ws.connection.SetReadDeadline(time.Now().Add(10 * time.Millisecond))
+
 	ws.connectionMu.Lock()
 	defer ws.connectionMu.Unlock()
 
@@ -87,7 +91,6 @@ func (ws *WebSocket) closeConnection() error {
 func (ws *WebSocket) handle(ctx context.Context) {
 	ws.wg.Add(1)
 	defer func() {
-		ws.closeConnection()
 		ws.wg.Done()
 	}()
 
@@ -99,8 +102,14 @@ func (ws *WebSocket) handle(ctx context.Context) {
 			{
 				err := ws.read()
 				if err != nil {
-					log.Println("websocket read error", err)
-					continue
+					nerr, ok := err.(net.Error)
+					if ok && nerr.Timeout() {
+						// time out
+						return
+					}
+
+					log.Println("websocket read error", ws.url, err)
+					return
 				}
 			}
 		}
@@ -111,16 +120,14 @@ func (ws *WebSocket) read() error {
 	ws.connectionMu.RLock()
 	defer ws.connectionMu.RUnlock()
 
-	ws.connection.SetReadDeadline(time.Now().Add(10 * time.Second))
 	t, msg, err := ws.connection.ReadMessage()
-
 	if err != nil {
+
 		return err
 	}
 
 	switch t {
-	case TextMessage:
-	case BinaryMessage:
+	case TextMessage, BinaryMessage:
 		if ws.OnMessage != nil {
 			ws.OnMessage(t, msg)
 		}
@@ -148,6 +155,8 @@ func (ws *WebSocket) Open() error {
 }
 
 func (ws *WebSocket) Close() {
+	ws.closeConnection()
+
 	if ws.cancel != nil {
 		ws.cancel()
 		ws.cancel = nil
@@ -164,6 +173,8 @@ func (ws *WebSocket) Send(message any) error {
 	ws.connectionMu.RLock()
 	defer ws.connectionMu.RUnlock()
 
+	log.Println("ws send", message)
+
 	if ws.connection == nil {
 		return fmt.Errorf("websocket connection is null")
 	}
@@ -174,6 +185,8 @@ func (ws *WebSocket) Send(message any) error {
 func (ws *WebSocket) SendBinary(b []byte) error {
 	ws.connectionMu.RLock()
 	defer ws.connectionMu.RUnlock()
+
+	log.Println("ws send binary", b)
 
 	if ws.connection == nil {
 		return fmt.Errorf("websocket connection is null")

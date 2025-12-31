@@ -74,5 +74,7 @@ func (e *Exec) Start() error {
 
 func (e *Exec) Stop() {
 	err := e.stopCmd()
-	log.Println("exec stop error", err)
+	if err != nil {
+		log.Println("exec stop error", e.path, err)
+	}
 }
