@@ -418,7 +418,7 @@ func (d *Device) handleWsMessage(msg []byte) DeviceMessage {
 				return NewDeviceMessage(DeviceMessageTypeError)
 			}
 
-			mm := NewDeviceMessage(DeviceMessageTypeWebRTCOffer)
+			mm := NewDeviceMessage(DeviceMessageTypeWebRTCAnswer)
 			answer, err := d.wrtc.UseOffer(m.Offer)
 			if err != nil {
 				log.Println("device wrtc use offer error", err)
