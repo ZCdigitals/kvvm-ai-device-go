@@ -42,7 +42,7 @@ func NewMqtt(id string, url string) Mqtt {
 	default:
 		log.Fatalln("mqtt unknown url schema %s", uu.Scheme)
 	}
-	o.SetClientID(fmt.Sprintf("device-%s", id))
+	o.SetClientID(id)
 	o.SetUsername(uu.User.Username())
 	if upe {
 		o.SetPassword(up)
