@@ -32,6 +32,8 @@ type WebSocket struct {
 	connection   *websocket.Conn
 	connectionMu sync.RWMutex
 
+	writeMu sync.Mutex
+
 	OnMessage WebSocketOnMessage
 	OnClose   func()
 }
@@ -133,7 +135,7 @@ func (ws *WebSocket) read() error {
 		}
 		break
 	case PingMessage:
-		ws.connection.WriteMessage(PongMessage, msg)
+		ws.SendPong()
 		break
 	}
 
@@ -169,9 +171,44 @@ func (ws *WebSocket) Close() {
 	}
 }
 
+func (ws *WebSocket) SendPing() error {
+	ws.connectionMu.RLock()
+	defer ws.connectionMu.RUnlock()
+
+	ws.writeMu.Lock()
+	defer ws.writeMu.Unlock()
+
+	log.Println("ws send ping")
+
+	if ws.connection == nil {
+		return fmt.Errorf("websocket connection is null")
+	}
+
+	return ws.connection.WriteMessage(PingMessage, nil)
+}
+
+func (ws *WebSocket) SendPong() error {
+	ws.connectionMu.RLock()
+	defer ws.connectionMu.RUnlock()
+
+	ws.writeMu.Lock()
+	defer ws.writeMu.Unlock()
+
+	log.Println("ws send pong")
+
+	if ws.connection == nil {
+		return fmt.Errorf("websocket connection is null")
+	}
+
+	return ws.connection.WriteMessage(PongMessage, nil)
+}
+
 func (ws *WebSocket) Send(message any) error {
 	ws.connectionMu.RLock()
 	defer ws.connectionMu.RUnlock()
+
+	ws.writeMu.Lock()
+	defer ws.writeMu.Unlock()
 
 	log.Println("ws send", message)
 
@@ -185,6 +222,9 @@ func (ws *WebSocket) Send(message any) error {
 func (ws *WebSocket) SendBinary(b []byte) error {
 	ws.connectionMu.RLock()
 	defer ws.connectionMu.RUnlock()
+
+	ws.writeMu.Lock()
+	defer ws.writeMu.Unlock()
 
 	log.Println("ws send binary", b)
 
