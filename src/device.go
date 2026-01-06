@@ -162,7 +162,7 @@ func (d *Device) useDataChannel(dc *WEBRTC.DataChannel) bool {
 }
 
 func (d *Device) sendIceCandidate(candidate *WEBRTC.ICECandidateInit) {
-	m := NewDeviceMessage(WebRTCIceCandidate)
+	m := NewDeviceMessage(DeviceMessageTypeWebRTCIceCandidate)
 	m.IceCandidate = candidate
 
 	err := d.wsSend(m)
@@ -337,36 +337,36 @@ func (d *Device) handleMqttMessage(msg []byte) DeviceMessage {
 	log.Println("device mqtt request", m.Type)
 
 	if err != nil {
-		return NewDeviceMessage(Error)
+		return NewDeviceMessage(DeviceMessageTypeError)
 	}
 
 	switch m.Type {
-	case WebSocketStart:
+	case DeviceMessageTypeWebSocketStart:
 		{
 			err = d.wsStart()
 			if err != nil {
 				log.Println("device ws start error", err)
-				return NewDeviceMessage(Error)
+				return NewDeviceMessage(DeviceMessageTypeError)
 			}
-			return NewDeviceMessage(WebSocketStart)
+			return NewDeviceMessage(DeviceMessageTypeWebSocketStart)
 		}
-	case WebSocketStop:
+	case DeviceMessageTypeWebSocketStop:
 		{
 			err = d.wsStop()
 			if err != nil {
 				log.Println("device ws stop error", err)
-				return NewDeviceMessage(Error)
+				return NewDeviceMessage(DeviceMessageTypeError)
 			}
-			return NewDeviceMessage(WebSocketStop)
+			return NewDeviceMessage(DeviceMessageTypeWebSocketStop)
 		}
-	case Error, "":
+	case DeviceMessageTypeError, "":
 		{
 			return NewDeviceMessage("")
 		}
 	default:
 		{
 			log.Println("unknown request type", m.Type)
-			return NewDeviceMessage(Error)
+			return NewDeviceMessage(DeviceMessageTypeError)
 		}
 	}
 }
@@ -377,65 +377,76 @@ func (d *Device) handleWsMessage(msg []byte) DeviceMessage {
 	log.Println("device ws message", m.Type)
 
 	if err != nil {
-		return NewDeviceMessage(Error)
+		return NewDeviceMessage(DeviceMessageTypeError)
 	}
 
 	switch m.Type {
-	case WebRTCStart:
+	case DeviceMessageTypeWebRTCStart:
 		{
 			err = d.wrtcStart(m)
 			if err != nil {
 				log.Println("device wrtc start error", err)
-				return NewDeviceMessage(Error)
+				return NewDeviceMessage(DeviceMessageTypeError)
 			}
-			return NewDeviceMessage(WebRTCStart)
+			return NewDeviceMessage(DeviceMessageTypeWebRTCStart)
 		}
-	case WebRTCStop:
+	case DeviceMessageTypeWebRTCStop:
 		{
 			err = d.wrtcStop()
 			if err != nil {
 				log.Println("device wrtc stop error", err)
-				return NewDeviceMessage(Error)
+				return NewDeviceMessage(DeviceMessageTypeError)
 			}
-			return NewDeviceMessage(WebRTCStop)
+			return NewDeviceMessage(DeviceMessageTypeWebRTCStop)
 		}
-	case WebRTCIceCandidate:
+	case DeviceMessageTypeWebRTCIceCandidate:
 		{
 			if d.wrtc == nil {
-				return NewDeviceMessage(Error)
+				return NewDeviceMessage(DeviceMessageTypeError)
 			}
 
 			err = d.wrtc.AddIceCandidate(m.IceCandidate)
 			if err != nil {
 				log.Println("device wrtc add ice candidtae error", err)
-				return NewDeviceMessage(Error)
+				return NewDeviceMessage(DeviceMessageTypeError)
 			}
-			return NewDeviceMessage(WebRTCIceCandidate)
+			return NewDeviceMessage(DeviceMessageTypeWebRTCIceCandidate)
 		}
-	case WebRTCOffer:
+	case DeviceMessageTypeWebRTCOffer:
 		{
 			if d.wrtc == nil {
-				return NewDeviceMessage(Error)
+				return NewDeviceMessage(DeviceMessageTypeError)
 			}
 
-			mm := NewDeviceMessage(WebRTCAnswer)
+			mm := NewDeviceMessage(DeviceMessageTypeWebRTCOffer)
 			answer, err := d.wrtc.UseOffer(m.Offer)
 			if err != nil {
 				log.Println("device wrtc use offer error", err)
-				return NewDeviceMessage(Error)
+				return NewDeviceMessage(DeviceMessageTypeError)
 			}
 
 			mm.Answer = answer
 			return mm
 		}
-	case Error, "":
+	case DeviceMessageTypeWakeOnLan:
+		{
+			err := d.sendWOL()
+
+			if err != nil {
+				log.Println("device send wol error", err)
+				return NewDeviceMessage(DeviceMessageTypeError)
+			}
+
+			return NewDeviceMessage(DeviceMessageTypeWakeOnLan)
+		}
+	case DeviceMessageTypeError, "":
 		{
 			return NewDeviceMessage("")
 		}
 	default:
 		{
 			log.Println("unknown request", m.Type)
-			return NewDeviceMessage(Error)
+			return NewDeviceMessage(DeviceMessageTypeError)
 		}
 	}
 }
@@ -541,11 +552,4 @@ func (d *Device) Close() {
 	d.hid.Close()
 
 	d.wrtcStop()
-}
-
-func (d *Device) SendWol() {
-	err := d.sendWOL()
-	if err != nil {
-		log.Println("device send wol error", err)
-	}
 }

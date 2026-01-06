@@ -9,14 +9,15 @@ import (
 )
 
 const (
-	WebSocketStart     string = "websocket-start"
-	WebSocketStop      string = "websocket-stop"
-	WebRTCStart        string = "webrtc-start"
-	WebRTCStop         string = "webrtc-stop"
-	WebRTCIceCandidate string = "webrtc-ice-candidate"
-	WebRTCOffer        string = "webrtc-offer"
-	WebRTCAnswer       string = "webrtc-answer"
-	Error              string = "error"
+	DeviceMessageTypeWebSocketStart     string = "websocket-start"
+	DeviceMessageTypeWebSocketStop      string = "websocket-stop"
+	DeviceMessageTypeWebRTCStart        string = "webrtc-start"
+	DeviceMessageTypeWebRTCStop         string = "webrtc-stop"
+	DeviceMessageTypeWebRTCIceCandidate string = "webrtc-ice-candidate"
+	DeviceMessageTypeWebRTCOffer        string = "webrtc-offer"
+	DeviceMessageTypeWebRTCAnswer       string = "webrtc-answer"
+	DeviceMessageTypeWakeOnLan          string = "wake-on-lan"
+	DeviceMessageTypeError              string = "error"
 )
 
 type DeviceMessage struct {
@@ -51,7 +52,7 @@ func UnmarshalDeviceMessage(data []byte) (DeviceMessage, error) {
 
 	if err != nil {
 		log.Println("message json unmarshal error", err)
-		m.Type = Error
+		m.Type = DeviceMessageTypeError
 	}
 
 	return m, err
