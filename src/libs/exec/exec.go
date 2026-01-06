@@ -36,6 +36,9 @@ func (e *Exec) startCmd() error {
 		e.args...,
 	)
 
+	e.cmd.Stdout = os.Stdout
+	e.cmd.Stderr = os.Stderr
+
 	// start
 	err := e.cmd.Start()
 	if err != nil {
