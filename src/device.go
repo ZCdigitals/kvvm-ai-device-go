@@ -323,12 +323,12 @@ func (d *Device) sendStatus() {
 	log.Println("status", mqttIsConnected, d.vm.IsConnected, d.hid.ReadStatus())
 }
 
-func (d *Device) sendWOL() error {
-	if d.cf.Config.WakeOnLanMac == "" {
-		return fmt.Errorf("device wake on lan mac is empty")
+func (d *Device) sendWOL(msg DeviceMessage) error {
+	if msg.WakeOnLanMacAddress == "" {
+		return fmt.Errorf("message wake on lan mac address is empty")
 	}
 
-	return wake_on_lan.SendWOL(d.cf.Config.WakeOnLanMac)
+	return wake_on_lan.SendWOL(msg.WakeOnLanMacAddress)
 }
 
 // handle mqtt message
@@ -430,7 +430,7 @@ func (d *Device) handleWsMessage(msg []byte) DeviceMessage {
 		}
 	case DeviceMessageTypeWakeOnLan:
 		{
-			err := d.sendWOL()
+			err := d.sendWOL(m)
 
 			if err != nil {
 				log.Println("device send wol error", err)

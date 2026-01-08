@@ -36,6 +36,9 @@ type DeviceMessage struct {
 
 	// webrtc answer
 	Answer *webrtc.SessionDescription `json:"answer,omitempty"`
+
+	// wake on lan mac
+	WakeOnLanMacAddress string `json:"wakeOnLanMacAddress"`
 }
 
 func NewDeviceMessage(t string) DeviceMessage {
