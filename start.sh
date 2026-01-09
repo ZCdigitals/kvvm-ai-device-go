@@ -1,8 +1,8 @@
 #!/bin/bash
 
 /root/device \
-	--serve-url http://192.168.3.45:3000 \
-	--serve-client-id 695229de6d72a035dc9d1b71 \
-	--mqtt-url mqtt://device:device12345@192.168.3.45:1883 \
+	--serve-url https://kvvm-ai-serve.zcdigitals.com \
+	--serve-client-id 6952402ffd6177d4d287b95e \
+	--mqtt-url mqtts://device:device12345@kvvm-ai-base.zcdigitals.com:8883 \
 	--config-path /root/kvvm-ai.json \
 	--hid-path /dev/hidg1
